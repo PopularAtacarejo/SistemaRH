@@ -8,7 +8,7 @@ import AIAnalysis from './AIAnalysis';
 import RemindersPanel from './RemindersPanel';
 import { Candidate } from '../types/candidate';
 import { CandidateService } from '../services/candidateService';
-import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell, Wifi, WifiOff } from 'lucide-react';
+import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell, Wifi, WifiOff, AlertCircle } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -17,6 +17,7 @@ const Dashboard: React.FC = () => {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [activeTab, setActiveTab] = useState<'todos' | 'candidatos' | 'aprovados' | 'reprovados' | 'experiencia' | 'ai-analysis' | 'lembretes'>('todos');
@@ -50,8 +51,13 @@ const Dashboard: React.FC = () => {
   // Carregar dados do Supabase
   const loadData = async (silent = false) => {
     if (!silent) setLoading(true);
+    setError(null);
+    
     try {
+      console.log('🔄 Carregando dados do dashboard...');
       const data = await CandidateService.getAllCandidates();
+      console.log(`✅ ${data.length} candidatos carregados`);
+      
       setOriginalCandidates(data);
       setLastSync(new Date());
       
@@ -59,16 +65,25 @@ const Dashboard: React.FC = () => {
         showNotification(`${data.length} candidatos carregados com sucesso!`, 'success');
       }
     } catch (error) {
-      console.error('Erro ao carregar dados:', error);
-      showNotification('Erro ao carregar dados do servidor', 'error');
+      console.error('❌ Erro ao carregar dados:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      setError(`Erro ao carregar dados: ${errorMessage}`);
+      
+      if (!silent) {
+        showNotification('Erro ao carregar dados do servidor', 'error');
+      }
       
       // Fallback para dados locais se offline
       if (!isOnline) {
         const savedData = localStorage.getItem('hrSystem_candidates_backup');
         if (savedData) {
-          const backup = JSON.parse(savedData);
-          setOriginalCandidates(backup);
-          showNotification('Dados carregados do cache local', 'warning');
+          try {
+            const backup = JSON.parse(savedData);
+            setOriginalCandidates(backup);
+            showNotification('Dados carregados do cache local', 'warning');
+          } catch (e) {
+            console.error('Erro ao carregar backup local:', e);
+          }
         }
       }
     } finally {
@@ -79,8 +94,12 @@ const Dashboard: React.FC = () => {
   // Importar novos candidatos
   const importNewCandidates = async () => {
     setLoading(true);
+    setError(null);
+    
     try {
+      console.log('📥 Iniciando importação de candidatos...');
       const newCount = await CandidateService.importCandidatesFromJSON();
+      
       if (newCount > 0) {
         showNotification(`${newCount} novo(s) candidato(s) importado(s)!`, 'success');
         await loadData(true);
@@ -88,7 +107,9 @@ const Dashboard: React.FC = () => {
         showNotification('Nenhum novo candidato encontrado', 'info');
       }
     } catch (error) {
-      console.error('Erro ao importar candidatos:', error);
+      console.error('❌ Erro ao importar candidatos:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      setError(`Erro ao importar: ${errorMessage}`);
       showNotification('Erro ao importar novos candidatos', 'error');
     } finally {
       setLoading(false);
@@ -477,6 +498,23 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Error Display */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+            <p className="text-red-600 dark:text-red-400 font-medium">Erro no Sistema</p>
+          </div>
+          <p className="text-red-600 dark:text-red-400 text-sm mt-1">{error}</p>
+          <button
+            onClick={() => setError(null)}
+            className="text-red-600 dark:text-red-400 text-sm underline mt-2"
+          >
+            Dispensar
+          </button>
+        </div>
+      )}
 
       {/* Action Buttons */}
       <div className="flex flex-wrap gap-4">
