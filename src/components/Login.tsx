@@ -116,24 +116,21 @@ const Login: React.FC = () => {
             </button>
           </form>
 
-          {/* Admin Info */}
-          <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <h3 className="text-sm font-medium text-blue-900 dark:text-blue-200 mb-2">
-              👨‍💼 Administrador Geral
-            </h3>
-            <p className="text-xs text-blue-700 dark:text-blue-300">
-              <strong>Email:</strong> jeferson@sistemahr.com<br />
-              <strong>Desenvolvedor:</strong> Jeferson<br />
-              <strong>WhatsApp:</strong> (82) 99915-8412
-            </p>
-          </div>
-
           {/* Info */}
           <div className="mt-6 text-center">
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Apenas usuários autorizados podem acessar o sistema.
               <br />
               Entre em contato com o administrador para obter acesso.
+            </p>
+          </div>
+
+          {/* Contact Info */}
+          <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700 text-center">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              <strong>Suporte Técnico:</strong><br />
+              WhatsApp: (82) 99915-8412<br />
+              Desenvolvedor: Jeferson
             </p>
           </div>
         </div>
