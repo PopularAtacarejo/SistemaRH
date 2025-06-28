@@ -71,38 +71,43 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      console.log('Tentando fazer login com:', email);
+      console.log('=== INICIANDO PROCESSO DE LOGIN ===');
+      console.log('Email:', email);
 
       // Primeiro verificar se o usuário existe na nossa base
       let userData: User | null = null;
       try {
+        console.log('Verificando usuário na base de dados...');
         userData = await UserService.getUserByEmail(email);
+        console.log('Resultado da busca:', userData ? 'Usuário encontrado' : 'Usuário não encontrado');
       } catch (error) {
-        console.log('Erro ao verificar usuário na base:', error);
-      }
-
-      if (!userData) {
-        console.log('Usuário não encontrado na base de dados');
+        console.error('Erro ao verificar usuário na base:', error);
         return false;
       }
 
-      console.log('Usuário encontrado na base:', userData.name);
+      if (!userData) {
+        console.log('❌ Usuário não encontrado na base de dados');
+        return false;
+      }
+
+      console.log('✅ Usuário encontrado:', userData.name, '-', userData.role);
 
       // Tentar fazer login com Supabase Auth
+      console.log('Tentando login no Supabase Auth...');
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
       if (error) {
-        console.log('Erro no login Auth, tentando criar conta:', error.message);
+        console.log('❌ Erro no login Auth:', error.message);
         
         // Se o usuário não existe no Auth, criar conta
         if (error.message.includes('Invalid login credentials') || 
             error.message.includes('Email not confirmed') ||
             error.message.includes('User not found')) {
           
-          console.log('Criando conta no Supabase Auth...');
+          console.log('🔄 Criando conta no Supabase Auth...');
           const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
             email,
             password,
@@ -117,11 +122,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
 
           if (signUpError) {
-            console.error('Erro ao criar conta:', signUpError);
+            console.error('❌ Erro ao criar conta:', signUpError);
             return false;
           }
 
-          console.log('Conta criada, fazendo login...');
+          console.log('✅ Conta criada, tentando login novamente...');
           
           // Tentar login novamente
           const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
@@ -130,11 +135,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
 
           if (loginError) {
-            console.error('Erro no login após criação:', loginError);
+            console.error('❌ Erro no login após criação:', loginError);
             
             // Se ainda der erro de confirmação, simular login para desenvolvimento
             if (loginError.message.includes('Email not confirmed')) {
-              console.log('Email não confirmado, simulando login para desenvolvimento...');
+              console.log('⚠️ Email não confirmado, fazendo login direto para desenvolvimento...');
               setUser(userData);
               return true;
             }
@@ -142,21 +147,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return false;
           }
 
-          console.log('Login realizado com sucesso após criação da conta');
+          console.log('✅ Login realizado com sucesso após criação da conta');
           setUser(userData);
           return true;
         } else {
-          console.error('Erro no login:', error);
+          console.error('❌ Erro no login:', error);
           return false;
         }
       }
 
       // Se o login foi bem-sucedido
-      console.log('Login realizado com sucesso');
+      console.log('✅ Login realizado com sucesso');
       setUser(userData);
       return true;
     } catch (error) {
-      console.error('Erro geral no login:', error);
+      console.error('❌ Erro geral no login:', error);
       return false;
     }
   };

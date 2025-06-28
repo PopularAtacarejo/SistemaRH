@@ -104,21 +104,42 @@ npm run build
 - **Assistente RH**: Visualização e comentários básicos
 - **Convidado**: Apenas visualização
 
-### Usuário Administrador Geral
+### 🔑 Credenciais de Acesso
 
+#### Administrador Principal
 - **Nome**: Jeferson
-- **Email**: jeferson@sistemahr.com
-- **Senha**: 873090As#
+- **Email**: `jeferson@sistemahr.com`
+- **Senha**: `873090As#`
 - **Role**: Administrador
 - **Departamento**: Desenvolvimento
 - **WhatsApp**: (82) 99915-8412
 
-### Usuários de Demonstração
+#### Usuários de Demonstração
 
-- **Email**: admin@empresa.com / **Senha**: admin123 / **Role**: Administrador
-- **Email**: gerente.rh@empresa.com / **Senha**: gerente123 / **Role**: Gerente RH
-- **Email**: analista.rh@empresa.com / **Senha**: analista123 / **Role**: Analista RH
-- **Email**: assistente.rh@empresa.com / **Senha**: assistente123 / **Role**: Assistente RH
+**Administrador Sistema:**
+- **Email**: `admin@empresa.com`
+- **Senha**: `admin123`
+- **Role**: Administrador
+
+**Gerente RH:**
+- **Email**: `gerente.rh@empresa.com`
+- **Senha**: `gerente123`
+- **Role**: Gerente RH
+
+**Analista RH:**
+- **Email**: `analista.rh@empresa.com`
+- **Senha**: `analista123`
+- **Role**: Analista RH
+
+**Assistente RH:**
+- **Email**: `assistente.rh@empresa.com`
+- **Senha**: `assistente123`
+- **Role**: Assistente RH
+
+**Convidado:**
+- **Email**: `convidado@empresa.com`
+- **Senha**: `convidado123`
+- **Role**: Convidado
 
 ## 📊 Estrutura do Banco
 

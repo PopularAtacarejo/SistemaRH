@@ -108,38 +108,65 @@ export class UserService {
     }
   }
 
-  // Buscar usuário por email
+  // Buscar usuário por email - VERSÃO MELHORADA
   static async getUserByEmail(email: string): Promise<User | null> {
     try {
       console.log('Buscando usuário por email:', email);
       
+      // Primeiro tentar com RPC para contornar RLS se necessário
       const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .eq('is_active', true)
-        .maybeSingle(); // Usar maybeSingle em vez de single para não dar erro se não encontrar
+        .rpc('get_user_by_email', { user_email: email });
 
       if (error) {
-        console.error('Erro ao buscar usuário:', error);
-        throw error;
+        console.log('RPC falhou, tentando query direta:', error);
+        
+        // Fallback para query direta
+        const { data: directData, error: directError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('email', email)
+          .eq('is_active', true)
+          .maybeSingle();
+
+        if (directError) {
+          console.error('Erro na query direta:', directError);
+          throw directError;
+        }
+
+        if (!directData) {
+          console.log('Usuário não encontrado:', email);
+          return null;
+        }
+
+        console.log('Usuário encontrado via query direta:', directData);
+        
+        return {
+          id: directData.id,
+          name: directData.name,
+          email: directData.email,
+          role: directData.role,
+          department: directData.department,
+          isActive: directData.is_active,
+          createdAt: directData.created_at
+        };
       }
 
-      if (!data) {
-        console.log('Usuário não encontrado:', email);
+      if (!data || data.length === 0) {
+        console.log('Usuário não encontrado via RPC:', email);
         return null;
       }
 
-      console.log('Usuário encontrado:', data);
+      const userData = data[0];
+      console.log('Usuário encontrado via RPC:', userData);
       
       return {
-        id: data.id,
-        name: data.name,
-        email: data.email,
-        role: data.role,
-        department: data.department,
-        isActive: data.is_active,
-        createdAt: data.created_at
+        id: userData.id,
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
+        department: userData.department,
+        isActive: userData.is_active,
+        createdAt: userData.created_at
       };
     } catch (error) {
       console.error('Erro ao buscar usuário por email:', error);
