@@ -8,7 +8,7 @@ import AIAnalysis from './AIAnalysis';
 import RemindersPanel from './RemindersPanel';
 import { Candidate } from '../types/candidate';
 import { CandidateService } from '../services/candidateService';
-import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell, Wifi, WifiOff, AlertCircle, CheckCircle, ExternalLink, Database } from 'lucide-react';
+import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell, Wifi, WifiOff, AlertCircle, CheckCircle, ExternalLink, Database, Sync } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -20,7 +20,11 @@ const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [lastSync, setLastSync] = useState<Date | null>(null);
-  const [dataSourceStatus, setDataSourceStatus] = useState<'loading' | 'success' | 'error'>('loading');
+  const [dataSourceStatus, setDataSourceStatus] = useState<{
+    available: boolean;
+    count: number;
+    error?: string;
+  }>({ available: false, count: 0 });
   const [activeTab, setActiveTab] = useState<'todos' | 'candidatos' | 'aprovados' | 'reprovados' | 'experiencia' | 'ai-analysis' | 'lembretes'>('todos');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(15);
@@ -52,21 +56,32 @@ const Dashboard: React.FC = () => {
   // Verificar status da fonte de dados
   const checkDataSourceStatus = async () => {
     try {
-      setDataSourceStatus('loading');
-      const { dadosCarregadosComSucesso } = await CandidateService.carregarDadosIniciais();
-      setDataSourceStatus(dadosCarregadosComSucesso ? 'success' : 'error');
+      const status = await CandidateService.checkDataSourceStatus();
+      setDataSourceStatus(status);
+      return status;
     } catch (error) {
-      setDataSourceStatus('error');
+      const errorStatus = {
+        available: false,
+        count: 0,
+        error: error instanceof Error ? error.message : 'Erro desconhecido'
+      };
+      setDataSourceStatus(errorStatus);
+      return errorStatus;
     }
   };
 
-  // Carregar dados do Supabase
+  // Carregar dados diretamente da fonte externa
   const loadData = async (silent = false) => {
     if (!silent) setLoading(true);
     setError(null);
     
     try {
       console.log('🔄 Carregando dados do dashboard...');
+      
+      // Verificar status da fonte primeiro
+      const sourceStatus = await checkDataSourceStatus();
+      
+      // Carregar dados (sempre tenta da fonte externa primeiro)
       const data = await CandidateService.getAllCandidates();
       console.log(`✅ ${data.length} candidatos carregados`);
       
@@ -74,7 +89,11 @@ const Dashboard: React.FC = () => {
       setLastSync(new Date());
       
       if (!silent) {
-        showNotification(`${data.length} candidatos carregados com sucesso!`, 'success');
+        if (sourceStatus.available) {
+          showNotification(`${data.length} candidatos carregados da fonte externa!`, 'success');
+        } else {
+          showNotification(`${data.length} candidatos carregados do banco local (fonte externa indisponível)`, 'warning');
+        }
       }
     } catch (error) {
       console.error('❌ Erro ao carregar dados:', error);
@@ -82,7 +101,7 @@ const Dashboard: React.FC = () => {
       setError(`Erro ao carregar dados: ${errorMessage}`);
       
       if (!silent) {
-        showNotification('Erro ao carregar dados do servidor', 'error');
+        showNotification('Erro ao carregar dados. Verifique sua conexão.', 'error');
       }
       
       // Fallback para dados locais se offline
@@ -103,71 +122,49 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Importar novos candidatos
-  const importNewCandidates = async () => {
+  // Sincronizar dados externos com banco local
+  const syncExternalData = async () => {
     setLoading(true);
     setError(null);
-    setDataSourceStatus('loading');
     
     try {
-      console.log('📥 Iniciando importação de candidatos...');
+      console.log('🔄 Sincronizando dados externos com banco local...');
       
-      // Verificar se a URL está disponível
-      let dadosCarregadosComSucesso = false;
-      try {
-        const { dadosCarregadosComSucesso: status } = await CandidateService.carregarDadosIniciais();
-        dadosCarregadosComSucesso = status;
-        setDataSourceStatus(status ? 'success' : 'error');
-      } catch (fetchError) {
-        console.log('❌ Falha ao acessar dados externos:', fetchError);
-        setDataSourceStatus('error');
-        dadosCarregadosComSucesso = false;
+      const sourceStatus = await checkDataSourceStatus();
+      if (!sourceStatus.available) {
+        throw new Error('Fonte externa indisponível para sincronização');
       }
       
-      if (!dadosCarregadosComSucesso) {
-        throw new Error('Dados externos não disponíveis. Verifique sua conexão com a internet e tente novamente.');
-      }
+      const syncedCount = await CandidateService.syncExternalDataToLocal();
       
-      // Importar usando o serviço
-      const newCount = await CandidateService.importCandidatesFromJSON();
-      
-      if (newCount > 0) {
-        showNotification(`${newCount} novo(s) candidato(s) importado(s) da fonte externa!`, 'success');
+      if (syncedCount > 0) {
+        showNotification(`${syncedCount} novo(s) candidato(s) sincronizado(s) com o banco local!`, 'success');
         await loadData(true);
       } else {
-        showNotification('Nenhum novo candidato encontrado para importar', 'info');
+        showNotification('Nenhum novo candidato para sincronizar', 'info');
       }
     } catch (error) {
-      console.error('❌ Erro ao importar candidatos:', error);
+      console.error('❌ Erro ao sincronizar dados:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
-      setError(`Erro ao importar: ${errorMessage}`);
-      setDataSourceStatus('error');
-      showNotification('Erro ao importar novos candidatos. Verifique sua conexão e tente novamente.', 'error');
+      setError(`Erro ao sincronizar: ${errorMessage}`);
+      showNotification('Erro ao sincronizar dados. Verifique sua conexão.', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  // Carregar dados iniciais e configurar real-time
+  // Carregar dados iniciais e configurar auto-refresh
   useEffect(() => {
     loadData();
-    checkDataSourceStatus();
     
-    // Configurar escuta em tempo real
-    const unsubscribe = CandidateService.subscribeToChanges(() => {
-      loadData(true);
-    });
-
-    // Auto-sync a cada 5 minutos se online
+    // Auto-refresh a cada 30 segundos se online
     const interval = setInterval(() => {
       if (isOnline) {
         loadData(true);
-        checkDataSourceStatus();
       }
-    }, 5 * 60 * 1000);
+    }, 30 * 1000);
 
     return () => {
-      unsubscribe();
       clearInterval(interval);
     };
   }, [isOnline]);
@@ -324,7 +321,8 @@ const Dashboard: React.FC = () => {
       showNotification('Status atualizado com sucesso!', 'success');
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
-      showNotification('Erro ao atualizar status', 'error');
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      showNotification(errorMessage, 'error');
     }
   };
 
@@ -344,7 +342,8 @@ const Dashboard: React.FC = () => {
       showNotification('Comentário adicionado com sucesso!', 'success');
     } catch (error) {
       console.error('Erro ao adicionar comentário:', error);
-      showNotification('Erro ao adicionar comentário', 'error');
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      showNotification(errorMessage, 'error');
     }
   };
 
@@ -364,7 +363,8 @@ const Dashboard: React.FC = () => {
       showNotification('Observações atualizadas com sucesso!', 'success');
     } catch (error) {
       console.error('Erro ao atualizar observações:', error);
-      showNotification('Erro ao atualizar observações', 'error');
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      showNotification(errorMessage, 'error');
     }
   };
 
@@ -387,7 +387,8 @@ const Dashboard: React.FC = () => {
       showNotification('Lembrete criado com sucesso!', 'success');
     } catch (error) {
       console.error('Erro ao criar lembrete:', error);
-      showNotification('Erro ao criar lembrete', 'error');
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      showNotification(errorMessage, 'error');
     }
   };
 
@@ -399,7 +400,8 @@ const Dashboard: React.FC = () => {
       showNotification('Lembrete atualizado com sucesso!', 'success');
     } catch (error) {
       console.error('Erro ao atualizar lembrete:', error);
-      showNotification('Erro ao atualizar lembrete', 'error');
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      showNotification(errorMessage, 'error');
     }
   };
 
@@ -497,24 +499,18 @@ const Dashboard: React.FC = () => {
   ];
 
   const getDataSourceStatusIcon = () => {
-    switch (dataSourceStatus) {
-      case 'success':
-        return <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />;
-      case 'error':
-        return <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />;
-      default:
-        return <RefreshCw className="w-4 h-4 animate-spin text-blue-600 dark:text-blue-400" />;
+    if (dataSourceStatus.available) {
+      return <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />;
+    } else {
+      return <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />;
     }
   };
 
   const getDataSourceStatusText = () => {
-    switch (dataSourceStatus) {
-      case 'success':
-        return 'Fonte externa disponível';
-      case 'error':
-        return 'Fonte externa indisponível';
-      default:
-        return 'Verificando fonte...';
+    if (dataSourceStatus.available) {
+      return `Fonte externa ativa (${dataSourceStatus.count} registros)`;
+    } else {
+      return 'Fonte externa indisponível';
     }
   };
 
@@ -528,7 +524,7 @@ const Dashboard: React.FC = () => {
               Bem-vindo, {user?.name}! 👋
             </h1>
             <p className="text-blue-100 dark:text-blue-200">
-              Sistema completo de gestão de RH - {originalCandidates.length} candidatos no banco de dados
+              Sistema de RH com dados em tempo real - {originalCandidates.length} candidatos carregados
             </p>
           </div>
           
@@ -555,7 +551,7 @@ const Dashboard: React.FC = () => {
             
             {lastSync && (
               <div className="text-xs text-blue-200">
-                Última sincronização: {lastSync.toLocaleTimeString('pt-BR')}
+                Última atualização: {lastSync.toLocaleTimeString('pt-BR')}
               </div>
             )}
           </div>
@@ -583,17 +579,17 @@ const Dashboard: React.FC = () => {
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
         <div className="flex items-center gap-2 mb-2">
           <Database className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-          <p className="text-blue-600 dark:text-blue-400 font-medium">Fonte de Dados Externa</p>
+          <p className="text-blue-600 dark:text-blue-400 font-medium">Carregamento Automático da Fonte Externa</p>
         </div>
         <p className="text-blue-600 dark:text-blue-400 text-sm">
-          Este sistema carrega dados exclusivamente da URL: 
+          ✅ Dados carregados automaticamente e em tempo real da URL: 
           <br />
           <code className="bg-blue-100 dark:bg-blue-800 px-2 py-1 rounded text-xs">
             https://raw.githubusercontent.com/PopularAtacarejo/VagasPopular/main/dados.json
           </code>
         </p>
         <p className="text-blue-600 dark:text-blue-400 text-xs mt-2">
-          ⚠️ Sem dados de demonstração - apenas dados reais da fonte externa
+          🔄 Atualização automática a cada 30 segundos • 📊 Sem dados de demonstração - apenas dados reais
         </p>
         <div className="flex items-center gap-2 mt-2">
           <span className="text-xs text-blue-600 dark:text-blue-400">Status:</span>
@@ -610,16 +606,16 @@ const Dashboard: React.FC = () => {
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors disabled:opacity-50"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'Sincronizando...' : 'Sincronizar'}
+          {loading ? 'Atualizando...' : 'Atualizar Dados'}
         </button>
         
         <button
-          onClick={importNewCandidates}
-          disabled={loading || !isOnline}
+          onClick={syncExternalData}
+          disabled={loading || !isOnline || !dataSourceStatus.available}
           className="flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-colors disabled:opacity-50"
         >
-          <Download className="w-4 h-4" />
-          Importar da Fonte Externa
+          <Sync className="w-4 h-4" />
+          Sincronizar com Banco Local
         </button>
         
         <button
@@ -636,7 +632,7 @@ const Dashboard: React.FC = () => {
           className="flex items-center gap-2 px-4 py-2 bg-orange-600 dark:bg-orange-500 text-white rounded-lg hover:bg-orange-700 dark:hover:bg-orange-600 transition-colors disabled:opacity-50"
         >
           <ExternalLink className="w-4 h-4" />
-          Verificar Fonte
+          Verificar Fonte Externa
         </button>
       </div>
 
