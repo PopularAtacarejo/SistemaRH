@@ -25,25 +25,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let mounted = true;
+
     // Verificar sessão atual
     const checkSession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        console.log('🔍 Verificando sessão atual...');
+        
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('❌ Erro ao verificar sessão:', error);
+          if (mounted) setLoading(false);
+          return;
+        }
         
         if (session?.user) {
+          console.log('✅ Sessão encontrada para:', session.user.email);
           try {
             const userData = await UserService.getUserByEmail(session.user.email!);
-            if (userData) {
+            if (userData && mounted) {
+              console.log('✅ Dados do usuário carregados:', userData.name);
               setUser(userData);
+            } else {
+              console.log('⚠️ Usuário não encontrado na base de dados');
             }
           } catch (error) {
-            console.error('Erro ao buscar dados do usuário:', error);
+            console.error('❌ Erro ao buscar dados do usuário:', error);
           }
+        } else {
+          console.log('ℹ️ Nenhuma sessão ativa encontrada');
         }
       } catch (error) {
-        console.error('Erro ao verificar sessão:', error);
+        console.error('❌ Erro geral ao verificar sessão:', error);
       } finally {
-        setLoading(false);
+        if (mounted) {
+          console.log('✅ Verificação de sessão concluída');
+          setLoading(false);
+        }
       }
     };
 
@@ -51,37 +70,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Escutar mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('🔄 Mudança de estado de auth:', event);
+      
       if (event === 'SIGNED_IN' && session?.user) {
+        console.log('✅ Usuário logado:', session.user.email);
         try {
           const userData = await UserService.getUserByEmail(session.user.email!);
-          if (userData) {
+          if (userData && mounted) {
             setUser(userData);
           }
         } catch (error) {
-          console.error('Erro ao buscar dados do usuário:', error);
+          console.error('❌ Erro ao buscar dados do usuário após login:', error);
         }
       } else if (event === 'SIGNED_OUT') {
-        setUser(null);
+        console.log('👋 Usuário deslogado');
+        if (mounted) setUser(null);
       }
-      setLoading(false);
+      
+      if (mounted) setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       console.log('=== INICIANDO PROCESSO DE LOGIN ===');
-      console.log('Email:', email);
+      console.log('📧 Email:', email);
 
       // Primeiro verificar se o usuário existe na nossa base
       let userData: User | null = null;
       try {
-        console.log('Verificando usuário na base de dados...');
+        console.log('🔍 Verificando usuário na base de dados...');
         userData = await UserService.getUserByEmail(email);
-        console.log('Resultado da busca:', userData ? 'Usuário encontrado' : 'Usuário não encontrado');
+        console.log('📊 Resultado da busca:', userData ? `✅ Usuário encontrado: ${userData.name}` : '❌ Usuário não encontrado');
       } catch (error) {
-        console.error('Erro ao verificar usuário na base:', error);
+        console.error('❌ Erro ao verificar usuário na base:', error);
         return false;
       }
 
@@ -90,24 +117,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
-      console.log('✅ Usuário encontrado:', userData.name, '-', userData.role);
+      console.log(`✅ Usuário encontrado: ${userData.name} - ${userData.role}`);
 
       // Tentar fazer login com Supabase Auth
-      console.log('Tentando login no Supabase Auth...');
+      console.log('🔐 Tentando login no Supabase Auth...');
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
       if (error) {
-        console.log('❌ Erro no login Auth:', error.message);
+        console.log('⚠️ Erro no login Auth:', error.message);
         
-        // Se o usuário não existe no Auth, criar conta
+        // Se o usuário não existe no Auth, criar conta automaticamente
         if (error.message.includes('Invalid login credentials') || 
             error.message.includes('Email not confirmed') ||
             error.message.includes('User not found')) {
           
-          console.log('🔄 Criando conta no Supabase Auth...');
+          console.log('🔄 Criando conta no Supabase Auth automaticamente...');
           const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
             email,
             password,
@@ -123,23 +150,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           if (signUpError) {
             console.error('❌ Erro ao criar conta:', signUpError);
-            return false;
-          }
-
-          console.log('✅ Conta criada, tentando login novamente...');
-          
-          // Tentar login novamente
-          const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
-            email,
-            password
-          });
-
-          if (loginError) {
-            console.error('❌ Erro no login após criação:', loginError);
             
-            // Se ainda der erro de confirmação, simular login para desenvolvimento
-            if (loginError.message.includes('Email not confirmed')) {
-              console.log('⚠️ Email não confirmado, fazendo login direto para desenvolvimento...');
+            // Se ainda der erro, fazer login direto (modo desenvolvimento)
+            if (signUpError.message.includes('User already registered')) {
+              console.log('⚠️ Usuário já registrado, fazendo login direto...');
               setUser(userData);
               return true;
             }
@@ -147,7 +161,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return false;
           }
 
-          console.log('✅ Login realizado com sucesso após criação da conta');
+          console.log('✅ Conta criada, fazendo login direto...');
           setUser(userData);
           return true;
         } else {

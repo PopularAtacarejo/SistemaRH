@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Lock, Building, Mail, LogIn, Eye, EyeOff } from 'lucide-react';
+import { Lock, Building, Mail, LogIn, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 const Login: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -19,12 +19,16 @@ const Login: React.FC = () => {
     setError('');
 
     try {
+      console.log('🚀 Iniciando processo de login...');
       const success = await login(formData.email, formData.password);
+      
       if (!success) {
         setError('Email ou senha incorretos. Verifique suas credenciais e tente novamente.');
+      } else {
+        console.log('✅ Login realizado com sucesso!');
       }
     } catch (err) {
-      console.error('Erro no login:', err);
+      console.error('❌ Erro no login:', err);
       setError('Erro interno do sistema. Tente novamente em alguns instantes.');
     } finally {
       setLoading(false);
@@ -38,6 +42,22 @@ const Login: React.FC = () => {
     }));
     // Limpar erro quando usuário começar a digitar
     if (error) setError('');
+  };
+
+  // Credenciais de exemplo para facilitar o teste
+  const fillExampleCredentials = (type: 'admin' | 'jeferson') => {
+    if (type === 'admin') {
+      setFormData({
+        email: 'admin@empresa.com',
+        password: 'admin123'
+      });
+    } else {
+      setFormData({
+        email: 'jeferson@sistemahr.com',
+        password: '873090As#'
+      });
+    }
+    setError('');
   };
 
   return (
@@ -59,10 +79,39 @@ const Login: React.FC = () => {
             </p>
           </div>
 
+          {/* Credenciais de Exemplo */}
+          <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <p className="text-sm font-medium text-blue-800 dark:text-blue-200">Credenciais de Teste</p>
+            </div>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => fillExampleCredentials('jeferson')}
+                className="w-full text-left text-xs bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 p-2 rounded hover:bg-blue-200 dark:hover:bg-blue-700 transition-colors"
+              >
+                <strong>Administrador Principal:</strong><br />
+                jeferson@sistemahr.com / 873090As#
+              </button>
+              <button
+                type="button"
+                onClick={() => fillExampleCredentials('admin')}
+                className="w-full text-left text-xs bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 p-2 rounded hover:bg-blue-200 dark:hover:bg-blue-700 transition-colors"
+              >
+                <strong>Admin Sistema:</strong><br />
+                admin@empresa.com / admin123
+              </button>
+            </div>
+          </div>
+
           {/* Error message */}
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />
+                <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+              </div>
             </div>
           )}
 
@@ -133,15 +182,6 @@ const Login: React.FC = () => {
               )}
             </button>
           </form>
-
-          {/* Info */}
-          <div className="mt-6 text-center">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Apenas usuários autorizados podem acessar o sistema.
-              <br />
-              Entre em contato com o administrador para obter acesso.
-            </p>
-          </div>
 
           {/* Contact Info */}
           <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700 text-center">
