@@ -33,7 +33,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (session?.user) {
           try {
             const userData = await UserService.getUserByEmail(session.user.email!);
-            setUser(userData);
+            if (userData) {
+              setUser(userData);
+            }
           } catch (error) {
             console.error('Erro ao buscar dados do usuário:', error);
           }
@@ -52,7 +54,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (event === 'SIGNED_IN' && session?.user) {
         try {
           const userData = await UserService.getUserByEmail(session.user.email!);
-          setUser(userData);
+          if (userData) {
+            setUser(userData);
+          }
         } catch (error) {
           console.error('Erro ao buscar dados do usuário:', error);
         }
@@ -69,29 +73,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       console.log('Tentando fazer login com:', email);
 
-      // Primeiro, tentar fazer login com Supabase Auth
+      // Primeiro verificar se o usuário existe na nossa base
+      let userData: User | null = null;
+      try {
+        userData = await UserService.getUserByEmail(email);
+      } catch (error) {
+        console.log('Erro ao verificar usuário na base:', error);
+      }
+
+      if (!userData) {
+        console.log('Usuário não encontrado na base de dados');
+        return false;
+      }
+
+      console.log('Usuário encontrado na base:', userData.name);
+
+      // Tentar fazer login com Supabase Auth
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
       if (error) {
-        console.log('Erro no login, tentando criar conta:', error.message);
+        console.log('Erro no login Auth, tentando criar conta:', error.message);
         
         // Se o usuário não existe no Auth, criar conta
         if (error.message.includes('Invalid login credentials') || 
             error.message.includes('Email not confirmed') ||
             error.message.includes('User not found')) {
           
-          // Verificar se o usuário existe na nossa tabela
-          const userData = await UserService.getUserByEmail(email);
-          
-          if (!userData) {
-            console.log('Usuário não encontrado na base de dados');
-            return false;
-          }
-
-          console.log('Criando conta no Supabase Auth para usuário existente...');
+          console.log('Criando conta no Supabase Auth...');
           const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
             email,
             password,
@@ -110,7 +121,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             return false;
           }
 
-          console.log('Conta criada, tentando login novamente...');
+          console.log('Conta criada, fazendo login...');
           
           // Tentar login novamente
           const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
@@ -119,12 +130,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
 
           if (loginError) {
-            console.error('Erro no segundo login:', loginError);
+            console.error('Erro no login após criação:', loginError);
             
-            // Se ainda der erro, pode ser que precise confirmar email
+            // Se ainda der erro de confirmação, simular login para desenvolvimento
             if (loginError.message.includes('Email not confirmed')) {
-              // Para desenvolvimento, vamos simular login bem-sucedido
-              console.log('Simulando login para desenvolvimento...');
+              console.log('Email não confirmado, simulando login para desenvolvimento...');
               setUser(userData);
               return true;
             }
@@ -141,16 +151,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       }
 
-      // Se o login foi bem-sucedido, buscar dados do usuário
-      console.log('Login realizado com sucesso, buscando dados do usuário...');
-      const userData = await UserService.getUserByEmail(email);
-      
-      if (!userData) {
-        console.log('Usuário não encontrado na base de dados após login');
-        await supabase.auth.signOut();
-        return false;
-      }
-
+      // Se o login foi bem-sucedido
+      console.log('Login realizado com sucesso');
       setUser(userData);
       return true;
     } catch (error) {
