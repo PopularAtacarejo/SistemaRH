@@ -44,7 +44,9 @@ export class UserService {
     department: string;
   }): Promise<void> {
     try {
-      const { error } = await supabase
+      console.log('Criando usuário:', userData);
+      
+      const { data, error } = await supabase
         .from('users')
         .insert({
           name: userData.name,
@@ -52,9 +54,16 @@ export class UserService {
           role: userData.role,
           department: userData.department,
           is_active: true
-        });
+        })
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Erro SQL ao criar usuário:', error);
+        throw error;
+      }
+
+      console.log('Usuário criado com sucesso:', data);
     } catch (error) {
       console.error('Erro ao criar usuário:', error);
       throw error;
@@ -102,18 +111,27 @@ export class UserService {
   // Buscar usuário por email
   static async getUserByEmail(email: string): Promise<User | null> {
     try {
+      console.log('Buscando usuário por email:', email);
+      
       const { data, error } = await supabase
         .from('users')
         .select('*')
         .eq('email', email)
         .eq('is_active', true)
-        .single();
+        .maybeSingle(); // Usar maybeSingle em vez de single para não dar erro se não encontrar
 
       if (error) {
-        if (error.code === 'PGRST116') return null; // Não encontrado
+        console.error('Erro ao buscar usuário:', error);
         throw error;
       }
 
+      if (!data) {
+        console.log('Usuário não encontrado:', email);
+        return null;
+      }
+
+      console.log('Usuário encontrado:', data);
+      
       return {
         id: data.id,
         name: data.name,
