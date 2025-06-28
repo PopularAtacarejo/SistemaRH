@@ -8,7 +8,7 @@ import AIAnalysis from './AIAnalysis';
 import RemindersPanel from './RemindersPanel';
 import { Candidate } from '../types/candidate';
 import { CandidateService } from '../services/candidateService';
-import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell, Wifi, WifiOff, AlertCircle, CheckCircle } from 'lucide-react';
+import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell, Wifi, WifiOff, AlertCircle, CheckCircle, ExternalLink } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -20,7 +20,7 @@ const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [lastSync, setLastSync] = useState<Date | null>(null);
-  const [dataSourceStatus, setDataSourceStatus] = useState<'loading' | 'success' | 'fallback' | 'error'>('loading');
+  const [dataSourceStatus, setDataSourceStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [activeTab, setActiveTab] = useState<'todos' | 'candidatos' | 'aprovados' | 'reprovados' | 'experiencia' | 'ai-analysis' | 'lembretes'>('todos');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(15);
@@ -101,43 +101,43 @@ const Dashboard: React.FC = () => {
     try {
       console.log('📥 Iniciando importação de candidatos...');
       
-      // Primeiro, tentar carregar dados da URL original
+      // Verificar se a URL está disponível
       let dadosCarregadosComSucesso = false;
       try {
         const response = await fetch('https://raw.githubusercontent.com/PopularAtacarejo/VagasPopular/main/dados.json');
         if (response.ok) {
           const dadosOriginais = await response.json();
-          console.log(`✅ Dados externos carregados: ${dadosOriginais.length} registros`);
+          console.log(`✅ Dados externos verificados: ${dadosOriginais.length} registros disponíveis`);
           setDataSourceStatus('success');
           dadosCarregadosComSucesso = true;
         } else {
           throw new Error(`HTTP ${response.status}`);
         }
       } catch (fetchError) {
-        console.log('⚠️ Falha ao carregar dados externos, usando fallback...');
-        setDataSourceStatus('fallback');
+        console.log('❌ Falha ao acessar dados externos:', fetchError);
+        setDataSourceStatus('error');
         dadosCarregadosComSucesso = false;
+      }
+      
+      if (!dadosCarregadosComSucesso) {
+        throw new Error('Dados externos não disponíveis. Verifique sua conexão com a internet e tente novamente.');
       }
       
       // Importar usando o serviço
       const newCount = await CandidateService.importCandidatesFromJSON();
       
       if (newCount > 0) {
-        const statusMessage = dadosCarregadosComSucesso 
-          ? `${newCount} novo(s) candidato(s) importado(s) da fonte externa!`
-          : `${newCount} candidato(s) de exemplo criado(s) (fonte externa indisponível)`;
-        
-        showNotification(statusMessage, dadosCarregadosComSucesso ? 'success' : 'warning');
+        showNotification(`${newCount} novo(s) candidato(s) importado(s) da fonte externa!`, 'success');
         await loadData(true);
       } else {
-        showNotification('Nenhum novo candidato encontrado', 'info');
+        showNotification('Nenhum novo candidato encontrado para importar', 'info');
       }
     } catch (error) {
       console.error('❌ Erro ao importar candidatos:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       setError(`Erro ao importar: ${errorMessage}`);
       setDataSourceStatus('error');
-      showNotification('Erro ao importar novos candidatos', 'error');
+      showNotification('Erro ao importar novos candidatos. Verifique sua conexão e tente novamente.', 'error');
     } finally {
       setLoading(false);
     }
@@ -493,8 +493,6 @@ const Dashboard: React.FC = () => {
     switch (dataSourceStatus) {
       case 'success':
         return <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />;
-      case 'fallback':
-        return <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />;
       case 'error':
         return <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />;
       default:
@@ -505,13 +503,11 @@ const Dashboard: React.FC = () => {
   const getDataSourceStatusText = () => {
     switch (dataSourceStatus) {
       case 'success':
-        return 'Dados externos carregados';
-      case 'fallback':
-        return 'Usando dados de exemplo';
+        return 'Fonte externa disponível';
       case 'error':
-        return 'Erro ao carregar dados';
+        return 'Fonte externa indisponível';
       default:
-        return 'Carregando...';
+        return 'Verificando fonte...';
     }
   };
 
@@ -576,6 +572,24 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
+      {/* Data Source Info */}
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+        <div className="flex items-center gap-2 mb-2">
+          <ExternalLink className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          <p className="text-blue-600 dark:text-blue-400 font-medium">Fonte de Dados Externa</p>
+        </div>
+        <p className="text-blue-600 dark:text-blue-400 text-sm">
+          Este sistema carrega dados exclusivamente da URL: 
+          <br />
+          <code className="bg-blue-100 dark:bg-blue-800 px-2 py-1 rounded text-xs">
+            https://raw.githubusercontent.com/PopularAtacarejo/VagasPopular/main/dados.json
+          </code>
+        </p>
+        <p className="text-blue-600 dark:text-blue-400 text-xs mt-2">
+          ⚠️ Sem dados de demonstração - apenas dados reais da fonte externa
+        </p>
+      </div>
+
       {/* Action Buttons */}
       <div className="flex flex-wrap gap-4">
         <button
@@ -593,7 +607,7 @@ const Dashboard: React.FC = () => {
           className="flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-colors disabled:opacity-50"
         >
           <Download className="w-4 h-4" />
-          Importar Novos
+          Importar da Fonte Externa
         </button>
         
         <button

@@ -203,71 +203,8 @@ export class CandidateService {
     }
   }
 
-  // Gerar dados de exemplo para demonstração
-  static generateSampleCandidates(): any[] {
-    const names = [
-      'Ana Silva Santos', 'Carlos Eduardo Oliveira', 'Mariana Costa Lima',
-      'João Pedro Almeida', 'Fernanda Rodrigues', 'Rafael Henrique Santos',
-      'Juliana Ferreira', 'Bruno Machado', 'Camila Sousa', 'Diego Martins',
-      'Priscila Barbosa', 'Thiago Nascimento', 'Larissa Pereira', 'André Luiz Costa',
-      'Beatriz Andrade', 'Lucas Gabriel Silva', 'Amanda Ribeiro', 'Felipe Santos',
-      'Natália Gomes', 'Rodrigo Araújo', 'Isabela Martins', 'Gustavo Lima',
-      'Patrícia Alves', 'Ricardo Souza', 'Vanessa Costa'
-    ];
-
-    const positions = [
-      'Desenvolvedor Frontend', 'Desenvolvedor Backend', 'Analista de Sistemas',
-      'Designer UI/UX', 'Gerente de Projetos', 'Analista de Marketing',
-      'Contador', 'Assistente Administrativo', 'Vendedor', 'Atendente',
-      'Analista Financeiro', 'Coordenador de RH', 'Técnico em Informática',
-      'Auxiliar de Escritório', 'Supervisor de Vendas'
-    ];
-
-    const cities = [
-      'São Paulo', 'Rio de Janeiro', 'Belo Horizonte', 'Brasília',
-      'Salvador', 'Fortaleza', 'Curitiba', 'Recife', 'Porto Alegre', 'Goiânia',
-      'Campinas', 'Santos', 'Ribeirão Preto', 'Sorocaba', 'Osasco'
-    ];
-
-    const neighborhoods = [
-      'Centro', 'Copacabana', 'Savassi', 'Asa Norte', 'Barra',
-      'Aldeota', 'Batel', 'Boa Viagem', 'Moinhos de Vento', 'Setor Oeste',
-      'Vila Madalena', 'Ipanema', 'Funcionários', 'Asa Sul', 'Pituba'
-    ];
-
-    const statuses = [
-      'em_analise', 'chamando_entrevista', 'primeira_prova', 'segunda_prova',
-      'aprovado_entrevista', 'na_experiencia', 'aprovado_experiencia',
-      'fazer_cracha', 'reprovado'
-    ];
-
-    return names.map((name, index) => {
-      const applicationDate = new Date();
-      applicationDate.setDate(applicationDate.getDate() - Math.floor(Math.random() * 30));
-      
-      // Gerar CPF fictício
-      const cpf = `${String(Math.floor(Math.random() * 900) + 100)}.${String(Math.floor(Math.random() * 900) + 100)}.${String(Math.floor(Math.random() * 900) + 100)}-${String(Math.floor(Math.random() * 90) + 10)}`;
-      
-      // Gerar telefone fictício
-      const phone = `(11) 9${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`;
-      
-      return {
-        nome: name,
-        cpf: cpf,
-        telefone: phone,
-        cidade: cities[Math.floor(Math.random() * cities.length)],
-        bairro: neighborhoods[Math.floor(Math.random() * neighborhoods.length)],
-        vaga: positions[Math.floor(Math.random() * positions.length)],
-        data: applicationDate.toISOString(),
-        arquivo: `https://example.com/curriculo-${index + 1}.pdf`,
-        email: name.toLowerCase().replace(/\s+/g, '.') + '@email.com',
-        status: statuses[Math.floor(Math.random() * statuses.length)]
-      };
-    });
-  }
-
   // Função para carregar dados iniciais - EXATAMENTE como você forneceu
-  static async carregarDadosIniciais(): Promise<any[]> {
+  static async carregarDadosIniciais(): Promise<{ dadosOriginais: any[], dadosCarregadosComSucesso: boolean }> {
     try {
       console.log('🔄 Carregando dados iniciais da URL fornecida...');
       
@@ -278,30 +215,38 @@ export class CandidateService {
       }
       
       const dadosOriginais = await response.json();
-      console.log(`✅ Dados carregados com sucesso: ${dadosOriginais.length} registros`);
+      console.log(`✅ Dados externos carregados com sucesso: ${dadosOriginais.length} registros`);
       
-      return dadosOriginais;
+      return {
+        dadosOriginais,
+        dadosCarregadosComSucesso: true
+      };
     } catch (error) {
       console.error('❌ Falha ao carregar dados externos:', error);
       
-      // Fallback para dados de exemplo
-      console.log('⚠️ Usando dados de exemplo como fallback...');
-      const dadosExemplo = this.generateSampleCandidates();
-      console.log(`📝 Gerados ${dadosExemplo.length} candidatos de exemplo`);
+      // NÃO usar dados de exemplo - retornar array vazio
+      console.log('⚠️ Dados externos indisponíveis. Sistema funcionará apenas com dados já cadastrados.');
       
-      return dadosExemplo;
+      return {
+        dadosOriginais: [],
+        dadosCarregadosComSucesso: false
+      };
     }
   }
 
-  // Importar candidatos - versão atualizada usando a função carregarDadosIniciais
+  // Importar candidatos - versão atualizada usando APENAS dados reais
   static async importCandidatesFromJSON(): Promise<number> {
     try {
       console.log('🔄 Iniciando importação de candidatos...');
       
       // Usar a função carregarDadosIniciais exatamente como você forneceu
-      const data = await this.carregarDadosIniciais();
+      const { dadosOriginais, dadosCarregadosComSucesso } = await this.carregarDadosIniciais();
       
-      if (!data || data.length === 0) {
+      if (!dadosCarregadosComSucesso) {
+        throw new Error('Falha ao carregar dados externos. Verifique a conexão com a internet e tente novamente.');
+      }
+      
+      if (!dadosOriginais || dadosOriginais.length === 0) {
         console.log('ℹ️ Nenhum dado disponível para importar');
         return 0;
       }
@@ -314,9 +259,9 @@ export class CandidateService {
       const existingCPFs = new Set(existingCandidates?.map(c => c.cpf) || []);
       
       // Filtrar apenas novos candidatos
-      const newCandidates = data.filter((item: any) => {
-        const cpf = item.cpf || `${Math.floor(Math.random() * 900) + 100}.${Math.floor(Math.random() * 900) + 100}.${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 90) + 10}`;
-        return !existingCPFs.has(cpf);
+      const newCandidates = dadosOriginais.filter((item: any) => {
+        const cpf = item.cpf;
+        return cpf && !existingCPFs.has(cpf);
       });
       
       if (newCandidates.length === 0) {
@@ -327,13 +272,13 @@ export class CandidateService {
       // Mapear e inserir novos candidatos
       const candidatesToInsert = newCandidates.map((item: any) => ({
         nome: item.nome || 'Nome não informado',
-        cpf: item.cpf || `${Math.floor(Math.random() * 900) + 100}.${Math.floor(Math.random() * 900) + 100}.${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 90) + 10}`,
-        telefone: item.telefone || `(11) 9${Math.floor(Math.random() * 9000) + 1000}-${Math.floor(Math.random() * 9000) + 1000}`,
-        cidade: item.cidade || 'São Paulo',
-        bairro: item.bairro || 'Centro',
-        vaga: item.vaga || 'Vaga Geral',
+        cpf: item.cpf || '',
+        telefone: item.telefone || '',
+        cidade: item.cidade || '',
+        bairro: item.bairro || '',
+        vaga: item.vaga || '',
         data: item.data || new Date().toISOString(),
-        arquivo: item.arquivo || 'https://example.com/curriculo.pdf',
+        arquivo: item.arquivo || '',
         email: item.email || `${(item.nome || 'usuario').toLowerCase().replace(/\s+/g, '.')}@email.com`,
         status: 'em_analise'
       }));
