@@ -266,53 +266,44 @@ export class CandidateService {
     });
   }
 
-  // Importar candidatos - versão atualizada com múltiplas fontes
+  // Função para carregar dados iniciais - EXATAMENTE como você forneceu
+  static async carregarDadosIniciais(): Promise<any[]> {
+    try {
+      console.log('🔄 Carregando dados iniciais da URL fornecida...');
+      
+      const response = await fetch('https://raw.githubusercontent.com/PopularAtacarejo/VagasPopular/main/dados.json');
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      const dadosOriginais = await response.json();
+      console.log(`✅ Dados carregados com sucesso: ${dadosOriginais.length} registros`);
+      
+      return dadosOriginais;
+    } catch (error) {
+      console.error('❌ Falha ao carregar dados externos:', error);
+      
+      // Fallback para dados de exemplo
+      console.log('⚠️ Usando dados de exemplo como fallback...');
+      const dadosExemplo = this.generateSampleCandidates();
+      console.log(`📝 Gerados ${dadosExemplo.length} candidatos de exemplo`);
+      
+      return dadosExemplo;
+    }
+  }
+
+  // Importar candidatos - versão atualizada usando a função carregarDadosIniciais
   static async importCandidatesFromJSON(): Promise<number> {
     try {
       console.log('🔄 Iniciando importação de candidatos...');
       
-      let data: any[] = [];
+      // Usar a função carregarDadosIniciais exatamente como você forneceu
+      const data = await this.carregarDadosIniciais();
       
-      // Lista de URLs para tentar
-      const dataSources = [
-        'https://raw.githubusercontent.com/PopularAtacarejo/VagasPopular/main/dados.json',
-        'https://raw.githubusercontent.com/PopularAtacarejo/VagasPopular/master/dados.json',
-        'https://api.github.com/repos/PopularAtacarejo/VagasPopular/contents/dados.json'
-      ];
-      
-      // Tentar cada fonte de dados
-      for (const url of dataSources) {
-        try {
-          console.log(`📡 Tentando carregar dados de: ${url}`);
-          const response = await fetch(url);
-          
-          if (response.ok) {
-            const responseData = await response.json();
-            
-            // Se for da API do GitHub, decodificar base64
-            if (url.includes('api.github.com')) {
-              const content = atob(responseData.content);
-              data = JSON.parse(content);
-            } else {
-              data = responseData;
-            }
-            
-            console.log(`✅ Dados carregados com sucesso: ${data.length} registros`);
-            break;
-          } else {
-            console.log(`❌ Falha ao carregar de ${url}: ${response.status}`);
-          }
-        } catch (error) {
-          console.log(`❌ Erro ao carregar de ${url}:`, error);
-          continue;
-        }
-      }
-      
-      // Se não conseguiu carregar de nenhuma fonte, gerar dados de exemplo
       if (!data || data.length === 0) {
-        console.log('⚠️ Nenhuma fonte externa disponível, gerando dados de exemplo...');
-        data = this.generateSampleCandidates();
-        console.log(`📝 Gerados ${data.length} candidatos de exemplo`);
+        console.log('ℹ️ Nenhum dado disponível para importar');
+        return 0;
       }
       
       // Verificar quais candidatos já existem

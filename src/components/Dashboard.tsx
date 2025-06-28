@@ -8,7 +8,7 @@ import AIAnalysis from './AIAnalysis';
 import RemindersPanel from './RemindersPanel';
 import { Candidate } from '../types/candidate';
 import { CandidateService } from '../services/candidateService';
-import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell, Wifi, WifiOff, AlertCircle } from 'lucide-react';
+import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell, Wifi, WifiOff, AlertCircle, CheckCircle } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -20,6 +20,7 @@ const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [lastSync, setLastSync] = useState<Date | null>(null);
+  const [dataSourceStatus, setDataSourceStatus] = useState<'loading' | 'success' | 'fallback' | 'error'>('loading');
   const [activeTab, setActiveTab] = useState<'todos' | 'candidatos' | 'aprovados' | 'reprovados' | 'experiencia' | 'ai-analysis' | 'lembretes'>('todos');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(15);
@@ -95,13 +96,38 @@ const Dashboard: React.FC = () => {
   const importNewCandidates = async () => {
     setLoading(true);
     setError(null);
+    setDataSourceStatus('loading');
     
     try {
       console.log('📥 Iniciando importação de candidatos...');
+      
+      // Primeiro, tentar carregar dados da URL original
+      let dadosCarregadosComSucesso = false;
+      try {
+        const response = await fetch('https://raw.githubusercontent.com/PopularAtacarejo/VagasPopular/main/dados.json');
+        if (response.ok) {
+          const dadosOriginais = await response.json();
+          console.log(`✅ Dados externos carregados: ${dadosOriginais.length} registros`);
+          setDataSourceStatus('success');
+          dadosCarregadosComSucesso = true;
+        } else {
+          throw new Error(`HTTP ${response.status}`);
+        }
+      } catch (fetchError) {
+        console.log('⚠️ Falha ao carregar dados externos, usando fallback...');
+        setDataSourceStatus('fallback');
+        dadosCarregadosComSucesso = false;
+      }
+      
+      // Importar usando o serviço
       const newCount = await CandidateService.importCandidatesFromJSON();
       
       if (newCount > 0) {
-        showNotification(`${newCount} novo(s) candidato(s) importado(s)!`, 'success');
+        const statusMessage = dadosCarregadosComSucesso 
+          ? `${newCount} novo(s) candidato(s) importado(s) da fonte externa!`
+          : `${newCount} candidato(s) de exemplo criado(s) (fonte externa indisponível)`;
+        
+        showNotification(statusMessage, dadosCarregadosComSucesso ? 'success' : 'warning');
         await loadData(true);
       } else {
         showNotification('Nenhum novo candidato encontrado', 'info');
@@ -110,6 +136,7 @@ const Dashboard: React.FC = () => {
       console.error('❌ Erro ao importar candidatos:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       setError(`Erro ao importar: ${errorMessage}`);
+      setDataSourceStatus('error');
       showNotification('Erro ao importar novos candidatos', 'error');
     } finally {
       setLoading(false);
@@ -462,6 +489,32 @@ const Dashboard: React.FC = () => {
     { id: 'lembretes', label: 'Lembretes', icon: Bell, count: null }
   ];
 
+  const getDataSourceStatusIcon = () => {
+    switch (dataSourceStatus) {
+      case 'success':
+        return <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />;
+      case 'fallback':
+        return <AlertCircle className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />;
+      case 'error':
+        return <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400" />;
+      default:
+        return <RefreshCw className="w-4 h-4 animate-spin text-blue-600 dark:text-blue-400" />;
+    }
+  };
+
+  const getDataSourceStatusText = () => {
+    switch (dataSourceStatus) {
+      case 'success':
+        return 'Dados externos carregados';
+      case 'fallback':
+        return 'Usando dados de exemplo';
+      case 'error':
+        return 'Erro ao carregar dados';
+      default:
+        return 'Carregando...';
+    }
+  };
+
   return (
     <div className="space-y-8">
       {/* Welcome Section */}
@@ -476,8 +529,15 @@ const Dashboard: React.FC = () => {
             </p>
           </div>
           
-          {/* Status de Conexão */}
-          <div className="flex items-center gap-2">
+          {/* Status de Conexão e Fonte de Dados */}
+          <div className="flex items-center gap-4">
+            {/* Status da Fonte de Dados */}
+            <div className="flex items-center gap-2 bg-white/10 px-3 py-1 rounded-full">
+              {getDataSourceStatusIcon()}
+              <span className="text-sm">{getDataSourceStatusText()}</span>
+            </div>
+            
+            {/* Status de Conexão */}
             {isOnline ? (
               <div className="flex items-center gap-2 bg-green-500/20 px-3 py-1 rounded-full">
                 <Wifi className="w-4 h-4" />
