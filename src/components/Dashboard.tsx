@@ -8,7 +8,7 @@ import AIAnalysis from './AIAnalysis';
 import RemindersPanel from './RemindersPanel';
 import { Candidate } from '../types/candidate';
 import { CandidateService } from '../services/candidateService';
-import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell, Wifi, WifiOff, AlertCircle, CheckCircle, ExternalLink, Database, Sync } from 'lucide-react';
+import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell, Wifi, WifiOff, AlertCircle, CheckCircle, ExternalLink, Database, FolderSync as Sync } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
