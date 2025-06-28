@@ -1,0 +1,473 @@
+import React, { useState, useEffect } from 'react';
+import { X, UserPlus, Edit, Trash2, Shield, User, Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
+
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  department: string;
+  createdAt: string;
+  isActive: boolean;
+}
+
+interface UserManagementProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
+
+const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
+  const { user: currentUser } = useAuth();
+  const [users, setUsers] = useState<User[]>([]);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: '',
+    department: ''
+  });
+
+  const roles = [
+    { value: 'Administrador', label: 'Administrador', description: 'Acesso total ao sistema' },
+    { value: 'Gerente RH', label: 'Gerente RH', description: 'Gerenciamento completo de candidatos' },
+    { value: 'Analista RH', label: 'Analista RH', description: 'Análise e avaliação de candidatos' },
+    { value: 'Assistente RH', label: 'Assistente RH', description: 'Visualização e comentários básicos' },
+    { value: 'Convidado', label: 'Convidado', description: 'Apenas visualização' }
+  ];
+
+  const departments = [
+    'Recursos Humanos',
+    'Recrutamento',
+    'Desenvolvimento',
+    'Administração',
+    'Diretoria'
+  ];
+
+  useEffect(() => {
+    if (isOpen) {
+      loadUsers();
+    }
+  }, [isOpen]);
+
+  const loadUsers = () => {
+    const savedUsers = localStorage.getItem('hrSystem_users');
+    if (savedUsers) {
+      const parsedUsers = JSON.parse(savedUsers);
+      setUsers(parsedUsers.map((u: any) => ({
+        ...u,
+        isActive: u.isActive !== false // Default to true if not set
+      })));
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.name || !formData.email || !formData.role || !formData.department) {
+      alert('Por favor, preencha todos os campos obrigatórios.');
+      return;
+    }
+
+    if (!editingUser && !formData.password) {
+      alert('Por favor, defina uma senha para o novo usuário.');
+      return;
+    }
+
+    const savedUsers = JSON.parse(localStorage.getItem('hrSystem_users') || '[]');
+    
+    if (editingUser) {
+      // Editar usuário existente
+      const updatedUsers = savedUsers.map((u: any) => {
+        if (u.id === editingUser.id) {
+          return {
+            ...u,
+            name: formData.name,
+            email: formData.email,
+            role: formData.role,
+            department: formData.department,
+            ...(formData.password && { password: formData.password })
+          };
+        }
+        return u;
+      });
+      
+      localStorage.setItem('hrSystem_users', JSON.stringify(updatedUsers));
+      setEditingUser(null);
+    } else {
+      // Criar novo usuário
+      const emailExists = savedUsers.some((u: any) => u.email === formData.email);
+      if (emailExists) {
+        alert('Este email já está cadastrado.');
+        return;
+      }
+
+      const newUser = {
+        id: Date.now().toString(),
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        role: formData.role,
+        department: formData.department,
+        createdAt: new Date().toISOString(),
+        isActive: true
+      };
+
+      savedUsers.push(newUser);
+      localStorage.setItem('hrSystem_users', JSON.stringify(savedUsers));
+    }
+
+    // Reset form
+    setFormData({
+      name: '',
+      email: '',
+      password: '',
+      role: '',
+      department: ''
+    });
+    setShowCreateForm(false);
+    loadUsers();
+  };
+
+  const handleEdit = (user: User) => {
+    setEditingUser(user);
+    setFormData({
+      name: user.name,
+      email: user.email,
+      password: '',
+      role: user.role,
+      department: user.department
+    });
+    setShowCreateForm(true);
+  };
+
+  const handleDelete = (userId: string) => {
+    if (userId === currentUser?.id) {
+      alert('Você não pode excluir sua própria conta.');
+      return;
+    }
+
+    if (confirm('Tem certeza que deseja excluir este usuário?')) {
+      const savedUsers = JSON.parse(localStorage.getItem('hrSystem_users') || '[]');
+      const updatedUsers = savedUsers.filter((u: any) => u.id !== userId);
+      localStorage.setItem('hrSystem_users', JSON.stringify(updatedUsers));
+      loadUsers();
+    }
+  };
+
+  const toggleUserStatus = (userId: string) => {
+    if (userId === currentUser?.id) {
+      alert('Você não pode desativar sua própria conta.');
+      return;
+    }
+
+    const savedUsers = JSON.parse(localStorage.getItem('hrSystem_users') || '[]');
+    const updatedUsers = savedUsers.map((u: any) => {
+      if (u.id === userId) {
+        return { ...u, isActive: !u.isActive };
+      }
+      return u;
+    });
+    
+    localStorage.setItem('hrSystem_users', JSON.stringify(updatedUsers));
+    loadUsers();
+  };
+
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'Administrador':
+        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+      case 'Gerente RH':
+        return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
+      case 'Analista RH':
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+      case 'Assistente RH':
+        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+      case 'Convidado':
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+      default:
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-800">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-600 dark:bg-blue-500 rounded-lg flex items-center justify-center">
+              <UserPlus className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Gerenciamento de Usuários</h2>
+              <p className="text-gray-600 dark:text-gray-400">Gerencie usuários e permissões do sistema</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => {
+                setShowCreateForm(true);
+                setEditingUser(null);
+                setFormData({
+                  name: '',
+                  email: '',
+                  password: '',
+                  role: '',
+                  department: ''
+                });
+              }}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
+            >
+              <UserPlus className="w-4 h-4" />
+              Novo Usuário
+            </button>
+            
+            <button
+              onClick={onClose}
+              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-white dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex h-full max-h-[calc(90vh-80px)]">
+          {/* User List */}
+          <div className="flex-1 p-6 overflow-y-auto">
+            <div className="space-y-4">
+              {users.length === 0 ? (
+                <div className="text-center py-8">
+                  <User className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+                  <p className="text-gray-500 dark:text-gray-400">Nenhum usuário cadastrado</p>
+                </div>
+              ) : (
+                users.map((user) => (
+                  <div
+                    key={user.id}
+                    className={`p-4 border rounded-lg transition-colors ${
+                      user.isActive 
+                        ? 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700' 
+                        : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 opacity-60'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-medium">
+                          {user.name.charAt(0).toUpperCase()}
+                        </div>
+                        
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-medium text-gray-900 dark:text-white">{user.name}</h3>
+                            {user.id === currentUser?.id && (
+                              <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full">
+                                Você
+                              </span>
+                            )}
+                            {!user.isActive && (
+                              <span className="text-xs bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 px-2 py-1 rounded-full">
+                                Inativo
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">{user.email}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${getRoleColor(user.role)}`}>
+                              {user.role}
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              {user.department}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleEdit(user)}
+                          className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded-lg transition-colors"
+                          title="Editar usuário"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        
+                        {user.id !== currentUser?.id && (
+                          <>
+                            <button
+                              onClick={() => toggleUserStatus(user.id)}
+                              className={`p-2 rounded-lg transition-colors ${
+                                user.isActive
+                                  ? 'text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/50'
+                                  : 'text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/50'
+                              }`}
+                              title={user.isActive ? 'Desativar usuário' : 'Ativar usuário'}
+                            >
+                              <Shield className="w-4 h-4" />
+                            </button>
+                            
+                            <button
+                              onClick={() => handleDelete(user.id)}
+                              className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-lg transition-colors"
+                              title="Excluir usuário"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          {/* Create/Edit Form */}
+          {showCreateForm && (
+            <div className="w-96 border-l border-gray-200 dark:border-gray-700 p-6 overflow-y-auto">
+              <div className="mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
+                </h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {editingUser ? 'Atualize as informações do usuário' : 'Preencha os dados do novo usuário'}
+                </p>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Nome Completo *
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.name}
+                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="Nome do usuário"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Email *
+                  </label>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    placeholder="email@empresa.com"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Senha {editingUser ? '(deixe em branco para manter)' : '*'}
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={formData.password}
+                      onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
+                      className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                      placeholder="Senha do usuário"
+                      required={!editingUser}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Nível de Acesso *
+                  </label>
+                  <select
+                    value={formData.role}
+                    onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    required
+                  >
+                    <option value="">Selecione o nível</option>
+                    {roles.map(role => (
+                      <option key={role.value} value={role.value}>
+                        {role.label}
+                      </option>
+                    ))}
+                  </select>
+                  {formData.role && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                      {roles.find(r => r.value === formData.role)?.description}
+                    </p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Departamento *
+                  </label>
+                  <select
+                    value={formData.department}
+                    onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    required
+                  >
+                    <option value="">Selecione o departamento</option>
+                    {departments.map(dept => (
+                      <option key={dept} value={dept}>
+                        {dept}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="submit"
+                    className="flex-1 bg-blue-600 dark:bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
+                  >
+                    {editingUser ? 'Atualizar' : 'Criar Usuário'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateForm(false);
+                      setEditingUser(null);
+                      setFormData({
+                        name: '',
+                        email: '',
+                        password: '',
+                        role: '',
+                        department: ''
+                      });
+                    }}
+                    className="flex-1 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 py-2 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default UserManagement;
