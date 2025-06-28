@@ -8,7 +8,7 @@ import AIAnalysis from './AIAnalysis';
 import RemindersPanel from './RemindersPanel';
 import { Candidate } from '../types/candidate';
 import { CandidateService } from '../services/candidateService';
-import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell, Wifi, WifiOff, AlertCircle, CheckCircle, ExternalLink } from 'lucide-react';
+import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell, Wifi, WifiOff, AlertCircle, CheckCircle, ExternalLink, Database } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -48,6 +48,17 @@ const Dashboard: React.FC = () => {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
+
+  // Verificar status da fonte de dados
+  const checkDataSourceStatus = async () => {
+    try {
+      setDataSourceStatus('loading');
+      const { dadosCarregadosComSucesso } = await CandidateService.carregarDadosIniciais();
+      setDataSourceStatus(dadosCarregadosComSucesso ? 'success' : 'error');
+    } catch (error) {
+      setDataSourceStatus('error');
+    }
+  };
 
   // Carregar dados do Supabase
   const loadData = async (silent = false) => {
@@ -104,15 +115,9 @@ const Dashboard: React.FC = () => {
       // Verificar se a URL está disponível
       let dadosCarregadosComSucesso = false;
       try {
-        const response = await fetch('https://raw.githubusercontent.com/PopularAtacarejo/VagasPopular/main/dados.json');
-        if (response.ok) {
-          const dadosOriginais = await response.json();
-          console.log(`✅ Dados externos verificados: ${dadosOriginais.length} registros disponíveis`);
-          setDataSourceStatus('success');
-          dadosCarregadosComSucesso = true;
-        } else {
-          throw new Error(`HTTP ${response.status}`);
-        }
+        const { dadosCarregadosComSucesso: status } = await CandidateService.carregarDadosIniciais();
+        dadosCarregadosComSucesso = status;
+        setDataSourceStatus(status ? 'success' : 'error');
       } catch (fetchError) {
         console.log('❌ Falha ao acessar dados externos:', fetchError);
         setDataSourceStatus('error');
@@ -146,6 +151,7 @@ const Dashboard: React.FC = () => {
   // Carregar dados iniciais e configurar real-time
   useEffect(() => {
     loadData();
+    checkDataSourceStatus();
     
     // Configurar escuta em tempo real
     const unsubscribe = CandidateService.subscribeToChanges(() => {
@@ -156,6 +162,7 @@ const Dashboard: React.FC = () => {
     const interval = setInterval(() => {
       if (isOnline) {
         loadData(true);
+        checkDataSourceStatus();
       }
     }, 5 * 60 * 1000);
 
@@ -575,7 +582,7 @@ const Dashboard: React.FC = () => {
       {/* Data Source Info */}
       <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
         <div className="flex items-center gap-2 mb-2">
-          <ExternalLink className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+          <Database className="w-5 h-5 text-blue-600 dark:text-blue-400" />
           <p className="text-blue-600 dark:text-blue-400 font-medium">Fonte de Dados Externa</p>
         </div>
         <p className="text-blue-600 dark:text-blue-400 text-sm">
@@ -588,6 +595,11 @@ const Dashboard: React.FC = () => {
         <p className="text-blue-600 dark:text-blue-400 text-xs mt-2">
           ⚠️ Sem dados de demonstração - apenas dados reais da fonte externa
         </p>
+        <div className="flex items-center gap-2 mt-2">
+          <span className="text-xs text-blue-600 dark:text-blue-400">Status:</span>
+          {getDataSourceStatusIcon()}
+          <span className="text-xs text-blue-600 dark:text-blue-400">{getDataSourceStatusText()}</span>
+        </div>
       </div>
 
       {/* Action Buttons */}
@@ -616,6 +628,15 @@ const Dashboard: React.FC = () => {
         >
           <FileSpreadsheet className="w-4 h-4" />
           Exportar CSV
+        </button>
+
+        <button
+          onClick={checkDataSourceStatus}
+          disabled={loading}
+          className="flex items-center gap-2 px-4 py-2 bg-orange-600 dark:bg-orange-500 text-white rounded-lg hover:bg-orange-700 dark:hover:bg-orange-600 transition-colors disabled:opacity-50"
+        >
+          <ExternalLink className="w-4 h-4" />
+          Verificar Fonte
         </button>
       </div>
 
