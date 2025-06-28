@@ -1,16 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, UserPlus, Edit, Trash2, Shield, User, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-
-interface User {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  department: string;
-  createdAt: string;
-  isActive: boolean;
-}
+import { UserService, User as UserType } from '../services/userService';
 
 interface UserManagementProps {
   isOpen: boolean;
@@ -19,9 +10,10 @@ interface UserManagementProps {
 
 const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
   const { user: currentUser } = useAuth();
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<UserType[]>([]);
+  const [loading, setLoading] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<UserType | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -53,18 +45,20 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
     }
   }, [isOpen]);
 
-  const loadUsers = () => {
-    const savedUsers = localStorage.getItem('hrSystem_users');
-    if (savedUsers) {
-      const parsedUsers = JSON.parse(savedUsers);
-      setUsers(parsedUsers.map((u: any) => ({
-        ...u,
-        isActive: u.isActive !== false // Default to true if not set
-      })));
+  const loadUsers = async () => {
+    setLoading(true);
+    try {
+      const userData = await UserService.getAllUsers();
+      setUsers(userData);
+    } catch (error) {
+      console.error('Erro ao carregar usuários:', error);
+      alert('Erro ao carregar usuários');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.name || !formData.email || !formData.role || !formData.department) {
@@ -77,62 +71,49 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
       return;
     }
 
-    const savedUsers = JSON.parse(localStorage.getItem('hrSystem_users') || '[]');
-    
-    if (editingUser) {
-      // Editar usuário existente
-      const updatedUsers = savedUsers.map((u: any) => {
-        if (u.id === editingUser.id) {
-          return {
-            ...u,
-            name: formData.name,
-            email: formData.email,
-            role: formData.role,
-            department: formData.department,
-            ...(formData.password && { password: formData.password })
-          };
-        }
-        return u;
-      });
-      
-      localStorage.setItem('hrSystem_users', JSON.stringify(updatedUsers));
-      setEditingUser(null);
-    } else {
-      // Criar novo usuário
-      const emailExists = savedUsers.some((u: any) => u.email === formData.email);
-      if (emailExists) {
-        alert('Este email já está cadastrado.');
-        return;
+    setLoading(true);
+    try {
+      if (editingUser) {
+        // Editar usuário existente
+        await UserService.updateUser(editingUser.id, {
+          name: formData.name,
+          email: formData.email,
+          role: formData.role,
+          department: formData.department
+        });
+        
+        setEditingUser(null);
+      } else {
+        // Criar novo usuário
+        await UserService.createUser({
+          name: formData.name,
+          email: formData.email,
+          role: formData.role,
+          department: formData.department
+        });
       }
 
-      const newUser = {
-        id: Date.now().toString(),
-        name: formData.name,
-        email: formData.email,
-        password: formData.password,
-        role: formData.role,
-        department: formData.department,
-        createdAt: new Date().toISOString(),
-        isActive: true
-      };
-
-      savedUsers.push(newUser);
-      localStorage.setItem('hrSystem_users', JSON.stringify(savedUsers));
+      // Reset form
+      setFormData({
+        name: '',
+        email: '',
+        password: '',
+        role: '',
+        department: ''
+      });
+      setShowCreateForm(false);
+      await loadUsers();
+      
+      alert(editingUser ? 'Usuário atualizado com sucesso!' : 'Usuário criado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao salvar usuário:', error);
+      alert('Erro ao salvar usuário');
+    } finally {
+      setLoading(false);
     }
-
-    // Reset form
-    setFormData({
-      name: '',
-      email: '',
-      password: '',
-      role: '',
-      department: ''
-    });
-    setShowCreateForm(false);
-    loadUsers();
   };
 
-  const handleEdit = (user: User) => {
+  const handleEdit = (user: UserType) => {
     setEditingUser(user);
     setFormData({
       name: user.name,
@@ -144,36 +125,47 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
     setShowCreateForm(true);
   };
 
-  const handleDelete = (userId: string) => {
+  const handleDelete = async (userId: string) => {
     if (userId === currentUser?.id) {
       alert('Você não pode excluir sua própria conta.');
       return;
     }
 
     if (confirm('Tem certeza que deseja excluir este usuário?')) {
-      const savedUsers = JSON.parse(localStorage.getItem('hrSystem_users') || '[]');
-      const updatedUsers = savedUsers.filter((u: any) => u.id !== userId);
-      localStorage.setItem('hrSystem_users', JSON.stringify(updatedUsers));
-      loadUsers();
+      setLoading(true);
+      try {
+        await UserService.deleteUser(userId);
+        await loadUsers();
+        alert('Usuário excluído com sucesso!');
+      } catch (error) {
+        console.error('Erro ao excluir usuário:', error);
+        alert('Erro ao excluir usuário');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
-  const toggleUserStatus = (userId: string) => {
+  const toggleUserStatus = async (userId: string) => {
     if (userId === currentUser?.id) {
       alert('Você não pode desativar sua própria conta.');
       return;
     }
 
-    const savedUsers = JSON.parse(localStorage.getItem('hrSystem_users') || '[]');
-    const updatedUsers = savedUsers.map((u: any) => {
-      if (u.id === userId) {
-        return { ...u, isActive: !u.isActive };
-      }
-      return u;
-    });
-    
-    localStorage.setItem('hrSystem_users', JSON.stringify(updatedUsers));
-    loadUsers();
+    const user = users.find(u => u.id === userId);
+    if (!user) return;
+
+    setLoading(true);
+    try {
+      await UserService.updateUser(userId, { isActive: !user.isActive });
+      await loadUsers();
+      alert(`Usuário ${user.isActive ? 'desativado' : 'ativado'} com sucesso!`);
+    } catch (error) {
+      console.error('Erro ao alterar status do usuário:', error);
+      alert('Erro ao alterar status do usuário');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getRoleColor = (role: string) => {
@@ -223,7 +215,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
                   department: ''
                 });
               }}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors disabled:opacity-50"
             >
               <UserPlus className="w-4 h-4" />
               Novo Usuário
@@ -241,92 +234,101 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
         <div className="flex h-full max-h-[calc(90vh-80px)]">
           {/* User List */}
           <div className="flex-1 p-6 overflow-y-auto">
-            <div className="space-y-4">
-              {users.length === 0 ? (
-                <div className="text-center py-8">
-                  <User className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
-                  <p className="text-gray-500 dark:text-gray-400">Nenhum usuário cadastrado</p>
-                </div>
-              ) : (
-                users.map((user) => (
-                  <div
-                    key={user.id}
-                    className={`p-4 border rounded-lg transition-colors ${
-                      user.isActive 
-                        ? 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700' 
-                        : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 opacity-60'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-medium">
-                          {user.name.charAt(0).toUpperCase()}
+            {loading && !showCreateForm ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {users.length === 0 ? (
+                  <div className="text-center py-8">
+                    <User className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
+                    <p className="text-gray-500 dark:text-gray-400">Nenhum usuário cadastrado</p>
+                  </div>
+                ) : (
+                  users.map((user) => (
+                    <div
+                      key={user.id}
+                      className={`p-4 border rounded-lg transition-colors ${
+                        user.isActive 
+                          ? 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-700' 
+                          : 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 opacity-60'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center text-white font-medium">
+                            {user.name.charAt(0).toUpperCase()}
+                          </div>
+                          
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-medium text-gray-900 dark:text-white">{user.name}</h3>
+                              {user.id === currentUser?.id && (
+                                <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full">
+                                  Você
+                                </span>
+                              )}
+                              {!user.isActive && (
+                                <span className="text-xs bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 px-2 py-1 rounded-full">
+                                  Inativo
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600 dark:text-gray-400">{user.email}</p>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className={`text-xs px-2 py-1 rounded-full font-medium ${getRoleColor(user.role)}`}>
+                                {user.role}
+                              </span>
+                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                {user.department}
+                              </span>
+                            </div>
+                          </div>
                         </div>
                         
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-medium text-gray-900 dark:text-white">{user.name}</h3>
-                            {user.id === currentUser?.id && (
-                              <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 px-2 py-1 rounded-full">
-                                Você
-                              </span>
-                            )}
-                            {!user.isActive && (
-                              <span className="text-xs bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200 px-2 py-1 rounded-full">
-                                Inativo
-                              </span>
-                            )}
-                          </div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400">{user.email}</p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className={`text-xs px-2 py-1 rounded-full font-medium ${getRoleColor(user.role)}`}>
-                              {user.role}
-                            </span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              {user.department}
-                            </span>
-                          </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => handleEdit(user)}
+                            disabled={loading}
+                            className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded-lg transition-colors disabled:opacity-50"
+                            title="Editar usuário"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          
+                          {user.id !== currentUser?.id && (
+                            <>
+                              <button
+                                onClick={() => toggleUserStatus(user.id)}
+                                disabled={loading}
+                                className={`p-2 rounded-lg transition-colors disabled:opacity-50 ${
+                                  user.isActive
+                                    ? 'text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/50'
+                                    : 'text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/50'
+                                }`}
+                                title={user.isActive ? 'Desativar usuário' : 'Ativar usuário'}
+                              >
+                                <Shield className="w-4 h-4" />
+                              </button>
+                              
+                              <button
+                                onClick={() => handleDelete(user.id)}
+                                disabled={loading}
+                                className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-lg transition-colors disabled:opacity-50"
+                                title="Excluir usuário"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
                         </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => handleEdit(user)}
-                          className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded-lg transition-colors"
-                          title="Editar usuário"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        
-                        {user.id !== currentUser?.id && (
-                          <>
-                            <button
-                              onClick={() => toggleUserStatus(user.id)}
-                              className={`p-2 rounded-lg transition-colors ${
-                                user.isActive
-                                  ? 'text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/50'
-                                  : 'text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/50'
-                              }`}
-                              title={user.isActive ? 'Desativar usuário' : 'Ativar usuário'}
-                            >
-                              <Shield className="w-4 h-4" />
-                            </button>
-                            
-                            <button
-                              onClick={() => handleDelete(user.id)}
-                              className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-lg transition-colors"
-                              title="Excluir usuário"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </>
-                        )}
                       </div>
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
 
           {/* Create/Edit Form */}
@@ -353,6 +355,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     placeholder="Nome do usuário"
                     required
+                    disabled={loading}
                   />
                 </div>
 
@@ -367,6 +370,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     placeholder="email@empresa.com"
                     required
+                    disabled={loading}
                   />
                 </div>
 
@@ -382,11 +386,13 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
                       className="w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       placeholder="Senha do usuário"
                       required={!editingUser}
+                      disabled={loading}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                      disabled={loading}
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -402,6 +408,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
                     onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     required
+                    disabled={loading}
                   >
                     <option value="">Selecione o nível</option>
                     {roles.map(role => (
@@ -426,6 +433,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
                     onChange={(e) => setFormData(prev => ({ ...prev, department: e.target.value }))}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                     required
+                    disabled={loading}
                   >
                     <option value="">Selecione o departamento</option>
                     {departments.map(dept => (
@@ -439,8 +447,10 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
                 <div className="flex gap-3 pt-4">
                   <button
                     type="submit"
-                    className="flex-1 bg-blue-600 dark:bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
+                    disabled={loading}
+                    className="flex-1 bg-blue-600 dark:bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
+                    {loading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
                     {editingUser ? 'Atualizar' : 'Criar Usuário'}
                   </button>
                   <button
@@ -456,7 +466,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
                         department: ''
                       });
                     }}
-                    className="flex-1 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 py-2 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
+                    disabled={loading}
+                    className="flex-1 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 py-2 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
                   >
                     Cancelar
                   </button>

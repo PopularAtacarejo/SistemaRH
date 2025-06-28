@@ -7,7 +7,8 @@ import InteractiveCharts from './InteractiveCharts';
 import AIAnalysis from './AIAnalysis';
 import RemindersPanel from './RemindersPanel';
 import { Candidate } from '../types/candidate';
-import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell } from 'lucide-react';
+import { CandidateService } from '../services/candidateService';
+import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell, Wifi, WifiOff } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -16,7 +17,8 @@ const Dashboard: React.FC = () => {
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [lastCount, setLastCount] = useState(0);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [lastSync, setLastSync] = useState<Date | null>(null);
   const [activeTab, setActiveTab] = useState<'todos' | 'candidatos' | 'aprovados' | 'reprovados' | 'experiencia' | 'ai-analysis' | 'lembretes'>('todos');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(15);
@@ -31,80 +33,96 @@ const Dashboard: React.FC = () => {
     dataFim: ''
   });
 
-  // Carregar dados do banco real
-  const loadRealData = async (silent = false) => {
+  // Monitorar status de conexão
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Carregar dados do Supabase
+  const loadData = async (silent = false) => {
     if (!silent) setLoading(true);
     try {
-      const response = await fetch('https://raw.githubusercontent.com/PopularAtacarejo/VagasPopular/main/dados.json');
-      if (!response.ok) throw new Error('Falha ao carregar dados');
+      const data = await CandidateService.getAllCandidates();
+      setOriginalCandidates(data);
+      setLastSync(new Date());
       
-      const data = await response.json();
-      
-      // Mapear dados para o formato esperado
-      const mappedData = data.map((item: any, index: number) => ({
-        id: index.toString(),
-        nome: item.nome || '',
-        cpf: item.cpf || '',
-        telefone: item.telefone || '',
-        cidade: item.cidade || '',
-        bairro: item.bairro || '',
-        vaga: item.vaga || '',
-        data: item.data || '',
-        arquivo: item.arquivo || '',
-        email: `${(item.nome || '').toLowerCase().replace(/\s+/g, '.')}@email.com`,
-        phone: item.telefone || '',
-        city: item.cidade || '',
-        position: item.vaga || '',
-        name: item.nome || '',
-        applicationDate: item.data || '',
-        resumeUrl: item.arquivo || '',
-        status: 'em_analise',
-        lastUpdate: new Date().toISOString(),
-        updatedBy: 'Sistema',
-        comments: [],
-        startDate: null,
-        notes: '',
-        reminders: []
-      }));
-
-      // Carregar dados salvos do localStorage se existirem
-      const savedData = localStorage.getItem('hrSystem_candidates');
-      if (savedData) {
-        const saved = JSON.parse(savedData);
-        // Mesclar dados salvos com novos dados
-        const mergedData = mappedData.map((newItem: any) => {
-          const savedItem = saved.find((s: any) => s.id === newItem.id);
-          return savedItem ? { ...newItem, ...savedItem } : newItem;
-        });
-        setOriginalCandidates(mergedData);
-        setCandidates(mergedData);
-      } else {
-        setOriginalCandidates(mappedData);
-        setCandidates(mappedData);
+      if (!silent) {
+        showNotification(`${data.length} candidatos carregados com sucesso!`, 'success');
       }
-      
-      // Notificar novos dados
-      if (lastCount > 0 && mappedData.length > lastCount) {
-        showNotification(`${mappedData.length - lastCount} novo(s) currículo(s) recebido(s)!`, 'success');
-      }
-      setLastCount(mappedData.length);
-      
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
       showNotification('Erro ao carregar dados do servidor', 'error');
+      
+      // Fallback para dados locais se offline
+      if (!isOnline) {
+        const savedData = localStorage.getItem('hrSystem_candidates_backup');
+        if (savedData) {
+          const backup = JSON.parse(savedData);
+          setOriginalCandidates(backup);
+          showNotification('Dados carregados do cache local', 'warning');
+        }
+      }
     } finally {
       if (!silent) setLoading(false);
     }
   };
 
-  // Carregar dados iniciais
+  // Importar novos candidatos
+  const importNewCandidates = async () => {
+    setLoading(true);
+    try {
+      const newCount = await CandidateService.importCandidatesFromJSON();
+      if (newCount > 0) {
+        showNotification(`${newCount} novo(s) candidato(s) importado(s)!`, 'success');
+        await loadData(true);
+      } else {
+        showNotification('Nenhum novo candidato encontrado', 'info');
+      }
+    } catch (error) {
+      console.error('Erro ao importar candidatos:', error);
+      showNotification('Erro ao importar novos candidatos', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Carregar dados iniciais e configurar real-time
   useEffect(() => {
-    loadRealData();
+    loadData();
     
-    // Auto-refresh a cada 30 segundos
-    const interval = setInterval(() => loadRealData(true), 30000);
-    return () => clearInterval(interval);
-  }, []);
+    // Configurar escuta em tempo real
+    const unsubscribe = CandidateService.subscribeToChanges(() => {
+      loadData(true);
+    });
+
+    // Auto-sync a cada 5 minutos se online
+    const interval = setInterval(() => {
+      if (isOnline) {
+        loadData(true);
+      }
+    }, 5 * 60 * 1000);
+
+    return () => {
+      unsubscribe();
+      clearInterval(interval);
+    };
+  }, [isOnline]);
+
+  // Backup local quando dados mudam
+  useEffect(() => {
+    if (originalCandidates.length > 0) {
+      localStorage.setItem('hrSystem_candidates_backup', JSON.stringify(originalCandidates));
+    }
+  }, [originalCandidates]);
 
   // Filtrar candidatos por aba
   const getFilteredCandidatesByTab = () => {
@@ -206,7 +224,7 @@ const Dashboard: React.FC = () => {
     if (activeTab !== 'ai-analysis' && activeTab !== 'lembretes') {
       const filtered = getFilteredCandidatesByTab();
       setCandidates(filtered);
-      setCurrentPage(1); // Reset para primeira página quando filtros mudarem
+      setCurrentPage(1);
     }
   }, [filters, originalCandidates, activeTab]);
 
@@ -227,143 +245,107 @@ const Dashboard: React.FC = () => {
     });
   };
 
-  const handleStatusUpdate = (candidateId: string, newStatus: string, comment?: string, startDate?: string) => {
-    const updatedCandidates = originalCandidates.map(candidate => {
-      if (candidate.id === candidateId) {
-        const updatedCandidate = {
-          ...candidate,
-          status: newStatus,
-          lastUpdate: new Date().toISOString(),
-          updatedBy: user?.name || 'Sistema',
-          startDate: startDate || candidate.startDate
-        };
-        
-        if (comment) {
-          updatedCandidate.comments = [
-            ...(candidate.comments || []),
-            {
-              id: Date.now().toString(),
-              text: comment,
-              author: user?.name || 'Sistema',
-              date: new Date().toISOString(),
-              type: 'status_change'
-            }
-          ];
+  const handleStatusUpdate = async (candidateId: string, newStatus: string, comment?: string, startDate?: string) => {
+    try {
+      await CandidateService.updateCandidateStatus(
+        candidateId, 
+        newStatus, 
+        user?.name || 'Sistema',
+        comment,
+        startDate
+      );
+      
+      // Recarregar dados
+      await loadData(true);
+      
+      // Atualizar candidato selecionado se for o mesmo
+      if (selectedCandidate && selectedCandidate.id === candidateId) {
+        const updatedCandidate = originalCandidates.find(c => c.id === candidateId);
+        if (updatedCandidate) {
+          setSelectedCandidate(updatedCandidate);
         }
-        
-        return updatedCandidate;
       }
-      return candidate;
-    });
-    
-    setOriginalCandidates(updatedCandidates);
-    localStorage.setItem('hrSystem_candidates', JSON.stringify(updatedCandidates));
-    
-    // Atualizar candidato selecionado se for o mesmo
-    if (selectedCandidate && selectedCandidate.id === candidateId) {
-      const updatedSelected = updatedCandidates.find(c => c.id === candidateId);
-      if (updatedSelected) {
-        setSelectedCandidate(updatedSelected);
-      }
+      
+      showNotification('Status atualizado com sucesso!', 'success');
+    } catch (error) {
+      console.error('Erro ao atualizar status:', error);
+      showNotification('Erro ao atualizar status', 'error');
     }
   };
 
-  const handleAddComment = (candidateId: string, comment: string) => {
-    const updatedCandidates = originalCandidates.map(candidate => {
-      if (candidate.id === candidateId) {
-        return {
-          ...candidate,
-          comments: [
-            ...(candidate.comments || []),
-            {
-              id: Date.now().toString(),
-              text: comment,
-              author: user?.name || 'Sistema',
-              date: new Date().toISOString(),
-              type: 'comment'
-            }
-          ]
-        };
+  const handleAddComment = async (candidateId: string, comment: string) => {
+    try {
+      await CandidateService.addComment(candidateId, comment, user?.name || 'Sistema');
+      await loadData(true);
+      
+      // Atualizar candidato selecionado se for o mesmo
+      if (selectedCandidate && selectedCandidate.id === candidateId) {
+        const updatedCandidate = originalCandidates.find(c => c.id === candidateId);
+        if (updatedCandidate) {
+          setSelectedCandidate(updatedCandidate);
+        }
       }
-      return candidate;
-    });
-    
-    setOriginalCandidates(updatedCandidates);
-    localStorage.setItem('hrSystem_candidates', JSON.stringify(updatedCandidates));
-    
-    // Atualizar candidato selecionado se for o mesmo
-    if (selectedCandidate && selectedCandidate.id === candidateId) {
-      const updatedSelected = updatedCandidates.find(c => c.id === candidateId);
-      if (updatedSelected) {
-        setSelectedCandidate(updatedSelected);
-      }
+      
+      showNotification('Comentário adicionado com sucesso!', 'success');
+    } catch (error) {
+      console.error('Erro ao adicionar comentário:', error);
+      showNotification('Erro ao adicionar comentário', 'error');
     }
   };
 
-  const handleUpdateNotes = (candidateId: string, notes: string) => {
-    const updatedCandidates = originalCandidates.map(candidate => {
-      if (candidate.id === candidateId) {
-        return {
-          ...candidate,
-          notes: notes
-        };
+  const handleUpdateNotes = async (candidateId: string, notes: string) => {
+    try {
+      await CandidateService.updateCandidateNotes(candidateId, notes);
+      await loadData(true);
+      
+      // Atualizar candidato selecionado se for o mesmo
+      if (selectedCandidate && selectedCandidate.id === candidateId) {
+        const updatedCandidate = originalCandidates.find(c => c.id === candidateId);
+        if (updatedCandidate) {
+          setSelectedCandidate(updatedCandidate);
+        }
       }
-      return candidate;
-    });
-    
-    setOriginalCandidates(updatedCandidates);
-    localStorage.setItem('hrSystem_candidates', JSON.stringify(updatedCandidates));
-    
-    // Atualizar candidato selecionado se for o mesmo
-    if (selectedCandidate && selectedCandidate.id === candidateId) {
-      const updatedSelected = updatedCandidates.find(c => c.id === candidateId);
-      if (updatedSelected) {
-        setSelectedCandidate(updatedSelected);
-      }
+      
+      showNotification('Observações atualizadas com sucesso!', 'success');
+    } catch (error) {
+      console.error('Erro ao atualizar observações:', error);
+      showNotification('Erro ao atualizar observações', 'error');
     }
   };
 
-  const handleAddReminder = (candidateId: string, reminder: any) => {
-    const updatedCandidates = originalCandidates.map(candidate => {
-      if (candidate.id === candidateId) {
-        return {
-          ...candidate,
-          reminders: [
-            ...(candidate.reminders || []),
-            reminder
-          ]
-        };
+  const handleAddReminder = async (candidateId: string, reminder: any) => {
+    try {
+      await CandidateService.addReminder(candidateId, {
+        ...reminder,
+        createdBy: user?.name || 'Sistema'
+      });
+      await loadData(true);
+      
+      // Atualizar candidato selecionado se for o mesmo
+      if (selectedCandidate && selectedCandidate.id === candidateId) {
+        const updatedCandidate = originalCandidates.find(c => c.id === candidateId);
+        if (updatedCandidate) {
+          setSelectedCandidate(updatedCandidate);
+        }
       }
-      return candidate;
-    });
-    
-    setOriginalCandidates(updatedCandidates);
-    localStorage.setItem('hrSystem_candidates', JSON.stringify(updatedCandidates));
-    
-    // Atualizar candidato selecionado se for o mesmo
-    if (selectedCandidate && selectedCandidate.id === candidateId) {
-      const updatedSelected = updatedCandidates.find(c => c.id === candidateId);
-      if (updatedSelected) {
-        setSelectedCandidate(updatedSelected);
-      }
+      
+      showNotification('Lembrete criado com sucesso!', 'success');
+    } catch (error) {
+      console.error('Erro ao criar lembrete:', error);
+      showNotification('Erro ao criar lembrete', 'error');
     }
   };
 
-  const handleUpdateReminder = (candidateId: string, reminderId: string, updates: any) => {
-    const updatedCandidates = originalCandidates.map(candidate => {
-      if (candidate.id === candidateId) {
-        return {
-          ...candidate,
-          reminders: (candidate.reminders || []).map(reminder =>
-            reminder.id === reminderId ? { ...reminder, ...updates } : reminder
-          )
-        };
-      }
-      return candidate;
-    });
-    
-    setOriginalCandidates(updatedCandidates);
-    localStorage.setItem('hrSystem_candidates', JSON.stringify(updatedCandidates));
+  const handleUpdateReminder = async (candidateId: string, reminderId: string, updates: any) => {
+    try {
+      await CandidateService.updateReminder(candidateId, reminderId, updates);
+      await loadData(true);
+      
+      showNotification('Lembrete atualizado com sucesso!', 'success');
+    } catch (error) {
+      console.error('Erro ao atualizar lembrete:', error);
+      showNotification('Erro ao atualizar lembrete', 'error');
+    }
   };
 
   const openCandidateModal = (candidate: Candidate) => {
@@ -401,15 +383,18 @@ const Dashboard: React.FC = () => {
     const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `curriculos_${activeTab}.csv`;
+    link.download = `curriculos_${activeTab}_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
     
     showNotification('Exportação realizada com sucesso!', 'success');
   };
 
-  const showNotification = (message: string, type: 'success' | 'warning' | 'error') => {
+  const showNotification = (message: string, type: 'success' | 'warning' | 'error' | 'info') => {
     // Implementação simples de notificação
     console.log(`${type.toUpperCase()}: ${message}`);
+    
+    // Aqui você pode implementar um sistema de notificação mais sofisticado
+    // Por exemplo, usando react-hot-toast ou similar
   };
 
   // Paginação
@@ -460,28 +445,62 @@ const Dashboard: React.FC = () => {
     <div className="space-y-8">
       {/* Welcome Section */}
       <div className="bg-gradient-to-r from-blue-600 to-blue-700 dark:from-blue-700 dark:to-blue-800 rounded-xl text-white p-6">
-        <h1 className="text-2xl font-bold mb-2">
-          Bem-vindo, {user?.name}! 👋
-        </h1>
-        <p className="text-blue-100 dark:text-blue-200">
-          Sistema completo de gestão de RH - {originalCandidates.length} currículos no banco de dados
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold mb-2">
+              Bem-vindo, {user?.name}! 👋
+            </h1>
+            <p className="text-blue-100 dark:text-blue-200">
+              Sistema completo de gestão de RH - {originalCandidates.length} candidatos no banco de dados
+            </p>
+          </div>
+          
+          {/* Status de Conexão */}
+          <div className="flex items-center gap-2">
+            {isOnline ? (
+              <div className="flex items-center gap-2 bg-green-500/20 px-3 py-1 rounded-full">
+                <Wifi className="w-4 h-4" />
+                <span className="text-sm">Online</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 bg-red-500/20 px-3 py-1 rounded-full">
+                <WifiOff className="w-4 h-4" />
+                <span className="text-sm">Offline</span>
+              </div>
+            )}
+            
+            {lastSync && (
+              <div className="text-xs text-blue-200">
+                Última sincronização: {lastSync.toLocaleTimeString('pt-BR')}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Action Buttons */}
       <div className="flex flex-wrap gap-4">
         <button
-          onClick={() => loadRealData()}
+          onClick={() => loadData()}
           disabled={loading}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors disabled:opacity-50"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          {loading ? 'Carregando...' : 'Atualizar Dados'}
+          {loading ? 'Sincronizando...' : 'Sincronizar'}
+        </button>
+        
+        <button
+          onClick={importNewCandidates}
+          disabled={loading || !isOnline}
+          className="flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-colors disabled:opacity-50"
+        >
+          <Download className="w-4 h-4" />
+          Importar Novos
         </button>
         
         <button
           onClick={exportToCSV}
-          className="flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-purple-600 dark:bg-purple-500 text-white rounded-lg hover:bg-purple-700 dark:hover:bg-purple-600 transition-colors"
         >
           <FileSpreadsheet className="w-4 h-4" />
           Exportar CSV
@@ -663,7 +682,7 @@ const Dashboard: React.FC = () => {
                 </button>
                 
                 <div className="text-sm text-gray-600 dark:text-gray-400 flex items-center">
-                  Mostrando {candidates.length} de {originalCandidates.length} currículos
+                  Mostrando {candidates.length} de {originalCandidates.length} candidatos
                 </div>
               </div>
             </div>
