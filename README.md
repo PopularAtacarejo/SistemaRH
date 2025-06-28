@@ -104,11 +104,21 @@ npm run build
 - **Assistente RH**: Visualização e comentários básicos
 - **Convidado**: Apenas visualização
 
-### Usuário Padrão
+### Usuário Administrador Geral
 
-- **Email**: admin@empresa.com
-- **Senha**: admin123
+- **Nome**: Jeferson
+- **Email**: jeferson@sistemahr.com
+- **Senha**: 873090As#
 - **Role**: Administrador
+- **Departamento**: Desenvolvimento
+- **WhatsApp**: (82) 99915-8412
+
+### Usuários de Demonstração
+
+- **Email**: admin@empresa.com / **Senha**: admin123 / **Role**: Administrador
+- **Email**: gerente.rh@empresa.com / **Senha**: gerente123 / **Role**: Gerente RH
+- **Email**: analista.rh@empresa.com / **Senha**: analista123 / **Role**: Analista RH
+- **Email**: assistente.rh@empresa.com / **Senha**: assistente123 / **Role**: Assistente RH
 
 ## 📊 Estrutura do Banco
 
@@ -206,8 +216,9 @@ src/
 
 Para dúvidas ou suporte:
 
+- **Administrador**: Jeferson
+- **Email**: jeferson@sistemahr.com
 - **WhatsApp**: (82) 99915-8412
-- **Desenvolvedor**: Jeferson
 
 ## 📄 Licença
 

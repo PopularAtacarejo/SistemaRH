@@ -46,8 +46,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Escutar mudanças de autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_IN' && session?.user) {
-        const userData = await UserService.getUserByEmail(session.user.email!);
-        setUser(userData);
+        try {
+          const userData = await UserService.getUserByEmail(session.user.email!);
+          setUser(userData);
+        } catch (error) {
+          console.error('Erro ao buscar dados do usuário:', error);
+        }
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
       }
@@ -59,7 +63,69 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      // Primeiro verificar se o usuário existe na nossa tabela
+      // Verificar credenciais específicas do administrador Jeferson
+      if (email === 'jeferson@sistemahr.com' && password === '873090As#') {
+        // Primeiro verificar se o usuário existe na nossa tabela
+        let userData = await UserService.getUserByEmail(email);
+        
+        if (!userData) {
+          // Se não existe, criar o usuário
+          await UserService.createUser({
+            name: 'Jeferson',
+            email: 'jeferson@sistemahr.com',
+            role: 'Administrador',
+            department: 'Desenvolvimento'
+          });
+          userData = await UserService.getUserByEmail(email);
+        }
+
+        // Tentar fazer login com Supabase Auth
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password
+        });
+
+        if (error) {
+          // Se o usuário não existe no Auth, criar conta
+          if (error.message.includes('Invalid login credentials')) {
+            const { error: signUpError } = await supabase.auth.signUp({
+              email,
+              password,
+              options: {
+                data: {
+                  name: userData!.name,
+                  role: userData!.role,
+                  department: userData!.department
+                }
+              }
+            });
+
+            if (signUpError) {
+              console.error('Erro ao criar conta:', signUpError);
+              return false;
+            }
+
+            // Tentar login novamente
+            const { data: loginData, error: loginError } = await supabase.auth.signInWithPassword({
+              email,
+              password
+            });
+
+            if (loginError) {
+              console.error('Erro no segundo login:', loginError);
+              return false;
+            }
+          } else {
+            console.error('Erro no login:', error);
+            return false;
+          }
+        }
+
+        setUser(userData);
+        return true;
+      }
+
+      // Para outros usuários, verificar se existe na nossa tabela primeiro
       const userData = await UserService.getUserByEmail(email);
       if (!userData) {
         return false;
