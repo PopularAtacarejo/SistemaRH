@@ -73,6 +73,10 @@ export class GitHubService {
         }
       });
 
+      if (response.status === 404) {
+        return null;
+      }
+
       if (!response.ok) {
         throw new Error(`GitHub raw file error: ${response.status} ${response.statusText}`);
       }
@@ -134,7 +138,7 @@ export class GitHubService {
       // Primeiro tentar via raw URL (mais rápido)
       try {
         const data = await this.getRawFile('dados.json');
-        if (Array.isArray(data)) {
+        if (data && Array.isArray(data)) {
           console.log(`✅ ${data.length} candidatos carregados via raw URL`);
           return data;
         }
@@ -185,7 +189,7 @@ export class GitHubService {
       // Primeiro tentar via raw URL
       try {
         const data = await this.getRawFile('usuarios.json');
-        if (Array.isArray(data)) {
+        if (data && Array.isArray(data)) {
           console.log(`✅ ${data.length} usuários carregados via raw URL`);
           return data;
         }
@@ -264,7 +268,7 @@ export class GitHubService {
       // Primeiro tentar via raw URL
       try {
         const data = await this.getRawFile('comentarios.json');
-        if (Array.isArray(data)) {
+        if (data && Array.isArray(data)) {
           return data;
         }
       } catch (rawError) {
@@ -308,7 +312,7 @@ export class GitHubService {
       // Primeiro tentar via raw URL
       try {
         const data = await this.getRawFile('lembretes.json');
-        if (Array.isArray(data)) {
+        if (data && Array.isArray(data)) {
           return data;
         }
       } catch (rawError) {
