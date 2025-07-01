@@ -1,67 +1,50 @@
-import { supabase } from '../lib/supabase';
+import { GitHubService } from './githubService';
 import { Candidate, Comment, Reminder } from '../types/candidate';
 
 export class CandidateService {
-  // URL da fonte de dados externa
-  private static readonly DATA_SOURCE_URL = 'https://raw.githubusercontent.com/PopularAtacarejo/VagasPopular/main/dados.json';
+  // Cache local para melhor performance
+  private static cache = {
+    candidates: null as Candidate[] | null,
+    comments: null as Comment[] | null,
+    reminders: null as Reminder[] | null,
+    lastUpdate: 0
+  };
 
-  // Carregar dados diretamente da fonte externa
-  static async carregarDadosIniciais(): Promise<{ dadosOriginais: any[], dadosCarregadosComSucesso: boolean }> {
-    try {
-      console.log('🔄 Carregando dados diretamente da fonte externa...');
-      console.log('📡 URL:', this.DATA_SOURCE_URL);
-      
-      const response = await fetch(this.DATA_SOURCE_URL, {
-        method: 'GET',
-        headers: {
-          'Accept': 'application/json',
-          'Cache-Control': 'no-cache'
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const dadosOriginais = await response.json();
-      
-      if (!Array.isArray(dadosOriginais)) {
-        throw new Error('Dados recebidos não são um array válido');
-      }
-      
-      console.log(`✅ Dados externos carregados com sucesso: ${dadosOriginais.length} registros`);
-      
-      return {
-        dadosOriginais,
-        dadosCarregadosComSucesso: true
-      };
-    } catch (error) {
-      console.error('❌ Falha ao carregar dados externos:', error);
-      
-      return {
-        dadosOriginais: [],
-        dadosCarregadosComSucesso: false
-      };
-    }
+  private static readonly CACHE_DURATION = 30 * 1000; // 30 segundos
+
+  // Verificar se cache é válido
+  private static isCacheValid(): boolean {
+    return Date.now() - this.cache.lastUpdate < this.CACHE_DURATION;
   }
 
-  // Buscar todos os candidatos - CARREGA DIRETAMENTE DA FONTE EXTERNA
+  // Limpar cache
+  private static clearCache(): void {
+    this.cache.candidates = null;
+    this.cache.comments = null;
+    this.cache.reminders = null;
+    this.cache.lastUpdate = 0;
+  }
+
+  // Carregar dados diretamente do GitHub
   static async getAllCandidates(): Promise<Candidate[]> {
     try {
-      console.log('🔄 Carregando candidatos diretamente da fonte externa...');
-      
-      // Carregar dados da fonte externa
-      const { dadosOriginais, dadosCarregadosComSucesso } = await this.carregarDadosIniciais();
-      
-      if (!dadosCarregadosComSucesso || dadosOriginais.length === 0) {
-        console.log('⚠️ Fonte externa indisponível, tentando carregar do banco local...');
-        return await this.getCandidatesFromDatabase();
+      console.log('🔄 Carregando candidatos do GitHub...');
+
+      // Verificar cache primeiro
+      if (this.isCacheValid() && this.cache.candidates) {
+        console.log('✅ Dados carregados do cache local');
+        return this.cache.candidates;
       }
 
-      console.log(`✅ ${dadosOriginais.length} candidatos carregados da fonte externa`);
+      // Carregar dados do GitHub
+      const candidatesData = await GitHubService.getCandidatesData();
+      const commentsData = await GitHubService.getCommentsData();
+      const remindersData = await GitHubService.getRemindersData();
 
-      // Converter dados da fonte externa para o formato esperado
-      const candidates = dadosOriginais.map((item: any, index: number) => {
+      console.log(`✅ ${candidatesData.length} candidatos carregados do GitHub`);
+
+      // Converter dados para o formato esperado
+      const candidates = candidatesData.map((item: any, index: number) => {
         // Garantir que a data seja válida
         let dataFormatada = new Date().toISOString();
         if (item.data) {
@@ -75,8 +58,10 @@ export class CandidateService {
           }
         }
 
+        const candidateId = item.id || `github-${index + 1}`;
+
         return {
-          id: `external-${index + 1}`, // ID único para dados externos
+          id: candidateId,
           nome: item.nome || 'Nome não informado',
           cpf: item.cpf || '',
           telefone: item.telefone || '',
@@ -92,125 +77,77 @@ export class CandidateService {
           name: item.nome || 'Nome não informado',
           status: item.status || 'em_analise',
           applicationDate: dataFormatada,
-          lastUpdate: new Date().toISOString(),
-          updatedBy: 'Sistema Externo',
+          lastUpdate: item.lastUpdate || new Date().toISOString(),
+          updatedBy: item.updatedBy || 'Sistema GitHub',
           resumeUrl: item.arquivo || '',
-          startDate: item.start_date || null,
+          startDate: item.startDate || null,
           notes: item.notes || '',
-          comments: [], // Comentários vazios para dados externos
-          reminders: [] // Lembretes vazios para dados externos
+          comments: commentsData
+            .filter((c: any) => c.candidateId === candidateId)
+            .map((c: any) => ({
+              id: c.id,
+              text: c.text,
+              author: c.author,
+              date: c.date,
+              type: c.type as 'comment' | 'status_change'
+            })),
+          reminders: remindersData
+            .filter((r: any) => r.candidateId === candidateId)
+            .map((r: any) => ({
+              id: r.id,
+              type: r.type as 'automatic' | 'manual',
+              title: r.title,
+              description: r.description,
+              dueDate: r.dueDate,
+              priority: r.priority as 'low' | 'medium' | 'high',
+              completed: r.completed,
+              createdBy: r.createdBy,
+              createdAt: r.createdAt
+            }))
         } as Candidate;
       });
 
       // Ordenar por data (mais recentes primeiro)
       candidates.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
 
+      // Atualizar cache
+      this.cache.candidates = candidates;
+      this.cache.comments = commentsData;
+      this.cache.reminders = remindersData;
+      this.cache.lastUpdate = Date.now();
+
       return candidates;
     } catch (error) {
-      console.error('❌ Erro ao carregar candidatos da fonte externa:', error);
+      console.error('❌ Erro ao carregar candidatos do GitHub:', error);
       
-      // Fallback para dados do banco local
-      console.log('🔄 Tentando carregar dados do banco local como fallback...');
-      return await this.getCandidatesFromDatabase();
-    }
-  }
-
-  // Método auxiliar para carregar dados do banco local (fallback)
-  private static async getCandidatesFromDatabase(): Promise<Candidate[]> {
-    try {
-      console.log('🔄 Carregando candidatos do banco de dados local...');
+      // Fallback para dados do cache se disponível
+      if (this.cache.candidates) {
+        console.log('⚠️ Retornando dados do cache devido ao erro');
+        return this.cache.candidates;
+      }
       
-      const { data: candidates, error: candidatesError } = await supabase
-        .from('candidates')
-        .select('*')
-        .order('data', { ascending: false });
-
-      if (candidatesError) throw candidatesError;
-
-      // Buscar comentários
-      const { data: comments, error: commentsError } = await supabase
-        .from('comments')
-        .select('*')
-        .order('created_at', { ascending: true });
-
-      if (commentsError) throw commentsError;
-
-      // Buscar lembretes
-      const { data: reminders, error: remindersError } = await supabase
-        .from('reminders')
-        .select('*')
-        .order('due_date', { ascending: true });
-
-      if (remindersError) throw remindersError;
-
-      console.log(`✅ ${candidates.length} candidatos carregados do banco local`);
-
-      // Mapear dados do banco para o formato esperado
-      return candidates.map(candidate => this.mapCandidateData(candidate, comments || [], reminders || []));
-    } catch (error) {
-      console.error('❌ Erro ao carregar dados do banco local:', error);
       return [];
     }
-  }
-
-  // Função auxiliar para mapear dados do candidato
-  private static mapCandidateData(candidate: any, comments: any[], reminders: any[]): Candidate {
-    return {
-      id: candidate.id,
-      nome: candidate.nome,
-      cpf: candidate.cpf,
-      telefone: candidate.telefone,
-      cidade: candidate.cidade,
-      bairro: candidate.bairro,
-      vaga: candidate.vaga,
-      data: candidate.data,
-      arquivo: candidate.arquivo,
-      email: candidate.email || `${candidate.nome.toLowerCase().replace(/\s+/g, '.')}@email.com`,
-      phone: candidate.telefone,
-      city: candidate.cidade,
-      position: candidate.vaga,
-      name: candidate.nome,
-      status: candidate.status,
-      applicationDate: candidate.data,
-      lastUpdate: candidate.last_update,
-      updatedBy: candidate.updated_by,
-      resumeUrl: candidate.arquivo,
-      startDate: candidate.start_date,
-      notes: candidate.notes,
-      comments: comments
-        .filter(c => c.candidate_id === candidate.id)
-        .map(c => ({
-          id: c.id,
-          text: c.text,
-          author: c.author,
-          date: c.created_at,
-          type: c.type as 'comment' | 'status_change'
-        })),
-      reminders: reminders
-        .filter(r => r.candidate_id === candidate.id)
-        .map(r => ({
-          id: r.id,
-          type: r.type as 'automatic' | 'manual',
-          title: r.title,
-          description: r.description,
-          dueDate: r.due_date,
-          priority: r.priority as 'low' | 'medium' | 'high',
-          completed: r.completed,
-          createdBy: r.created_by,
-          createdAt: r.created_at
-        }))
-    };
   }
 
   // Verificar status da fonte de dados
   static async checkDataSourceStatus(): Promise<{ available: boolean; count: number; error?: string }> {
     try {
-      const { dadosOriginais, dadosCarregadosComSucesso } = await this.carregarDadosIniciais();
+      const connection = await GitHubService.checkConnection();
+      
+      if (!connection.available) {
+        return {
+          available: false,
+          count: 0,
+          error: connection.error
+        };
+      }
+
+      const candidates = await GitHubService.getCandidatesData();
       
       return {
-        available: dadosCarregadosComSucesso,
-        count: dadosOriginais.length,
-        error: dadosCarregadosComSucesso ? undefined : 'Fonte de dados indisponível'
+        available: true,
+        count: candidates.length
       };
     } catch (error) {
       return {
@@ -221,99 +158,7 @@ export class CandidateService {
     }
   }
 
-  // Sincronizar dados externos com banco local (opcional)
-  static async syncExternalDataToLocal(): Promise<number> {
-    try {
-      console.log('🔄 Sincronizando dados externos com banco local...');
-      
-      const { dadosOriginais, dadosCarregadosComSucesso } = await this.carregarDadosIniciais();
-      
-      if (!dadosCarregadosComSucesso) {
-        throw new Error('Fonte externa indisponível para sincronização');
-      }
-
-      // Verificar quais candidatos já existem no banco
-      const { data: existingCandidates } = await supabase
-        .from('candidates')
-        .select('cpf');
-
-      const existingCPFs = new Set(existingCandidates?.map(c => c.cpf) || []);
-      
-      // Filtrar apenas novos candidatos
-      const newCandidates = dadosOriginais.filter((item: any) => {
-        const cpf = item.cpf;
-        const hasValidCPF = cpf && cpf.trim() !== '';
-        const isNew = !existingCPFs.has(cpf);
-        return hasValidCPF && isNew;
-      });
-
-      if (newCandidates.length === 0) {
-        console.log('ℹ️ Nenhum novo candidato para sincronizar');
-        return 0;
-      }
-
-      // Mapear e inserir novos candidatos
-      const candidatesToInsert = newCandidates.map((item: any) => {
-        let dataFormatada = new Date().toISOString();
-        if (item.data) {
-          try {
-            const dataCandidata = new Date(item.data);
-            if (!isNaN(dataCandidata.getTime())) {
-              dataFormatada = dataCandidata.toISOString();
-            }
-          } catch (e) {
-            console.log('⚠️ Data inválida para candidato:', item.nome);
-          }
-        }
-
-        return {
-          nome: item.nome || 'Nome não informado',
-          cpf: item.cpf || '',
-          telefone: item.telefone || '',
-          cidade: item.cidade || '',
-          bairro: item.bairro || '',
-          vaga: item.vaga || '',
-          data: dataFormatada,
-          arquivo: item.arquivo || '',
-          email: item.email || `${(item.nome || 'usuario').toLowerCase().replace(/\s+/g, '.')}@email.com`,
-          status: item.status || 'em_analise'
-        };
-      });
-
-      // Inserir em lotes
-      const batchSize = 50;
-      let totalInserted = 0;
-
-      for (let i = 0; i < candidatesToInsert.length; i += batchSize) {
-        const batch = candidatesToInsert.slice(i, i + batchSize);
-        
-        const { error } = await supabase
-          .from('candidates')
-          .insert(batch);
-
-        if (error) {
-          console.error(`❌ Erro ao inserir lote ${Math.floor(i/batchSize) + 1}:`, error);
-          throw error;
-        }
-
-        totalInserted += batch.length;
-        console.log(`✅ Lote ${Math.floor(i/batchSize) + 1} sincronizado: ${batch.length} candidatos`);
-      }
-
-      console.log(`✅ Sincronização concluída: ${totalInserted} novos candidatos`);
-      return totalInserted;
-    } catch (error) {
-      console.error('❌ Erro ao sincronizar dados:', error);
-      throw error;
-    }
-  }
-
-  // Método legado para compatibilidade (agora apenas chama syncExternalDataToLocal)
-  static async importCandidatesFromJSON(): Promise<number> {
-    return await this.syncExternalDataToLocal();
-  }
-
-  // Atualizar status do candidato (apenas para dados locais)
+  // Atualizar status do candidato
   static async updateCandidateStatus(
     candidateId: string, 
     newStatus: string, 
@@ -322,40 +167,62 @@ export class CandidateService {
     startDate?: string
   ): Promise<void> {
     try {
-      // Verificar se é um candidato externo (não pode ser editado)
-      if (candidateId.startsWith('external-')) {
-        throw new Error('Candidatos da fonte externa não podem ser editados. Sincronize com o banco local primeiro.');
+      console.log(`🔄 Atualizando status do candidato ${candidateId} para ${newStatus}`);
+
+      // Carregar dados atuais
+      const candidates = await GitHubService.getCandidatesData();
+      const comments = await GitHubService.getCommentsData();
+
+      // Encontrar e atualizar candidato
+      const candidateIndex = candidates.findIndex((c: any) => c.id === candidateId);
+      
+      if (candidateIndex === -1) {
+        throw new Error('Candidato não encontrado');
       }
 
-      // Atualizar candidato no banco local
-      const updateData: any = {
+      // Atualizar dados do candidato
+      candidates[candidateIndex] = {
+        ...candidates[candidateIndex],
         status: newStatus,
-        last_update: new Date().toISOString(),
-        updated_by: updatedBy
+        lastUpdate: new Date().toISOString(),
+        updatedBy: updatedBy
       };
 
       if (startDate) {
-        updateData.start_date = startDate;
+        candidates[candidateIndex].startDate = startDate;
       }
-
-      const { error: updateError } = await supabase
-        .from('candidates')
-        .update(updateData)
-        .eq('id', candidateId);
-
-      if (updateError) throw updateError;
 
       // Adicionar comentário se fornecido
       if (comment) {
-        await this.addComment(candidateId, comment, updatedBy, 'status_change');
+        const newComment = {
+          id: `comment-${Date.now()}`,
+          candidateId: candidateId,
+          text: comment,
+          author: updatedBy,
+          date: new Date().toISOString(),
+          type: 'status_change'
+        };
+        comments.push(newComment);
       }
+
+      // Salvar no GitHub
+      await GitHubService.saveCandidatesData(candidates);
+      
+      if (comment) {
+        await GitHubService.saveCommentsData(comments);
+      }
+
+      // Limpar cache para forçar reload
+      this.clearCache();
+
+      console.log('✅ Status atualizado com sucesso');
     } catch (error) {
-      console.error('Erro ao atualizar status:', error);
+      console.error('❌ Erro ao atualizar status:', error);
       throw error;
     }
   }
 
-  // Adicionar comentário (apenas para dados locais)
+  // Adicionar comentário
   static async addComment(
     candidateId: string, 
     text: string, 
@@ -363,120 +230,164 @@ export class CandidateService {
     type: 'comment' | 'status_change' = 'comment'
   ): Promise<void> {
     try {
-      if (candidateId.startsWith('external-')) {
-        throw new Error('Não é possível adicionar comentários a candidatos da fonte externa.');
-      }
+      console.log(`🔄 Adicionando comentário para candidato ${candidateId}`);
 
-      const { error } = await supabase
-        .from('comments')
-        .insert({
-          candidate_id: candidateId,
-          text,
-          author,
-          type
-        });
+      const comments = await GitHubService.getCommentsData();
 
-      if (error) throw error;
+      const newComment = {
+        id: `comment-${Date.now()}`,
+        candidateId: candidateId,
+        text: text,
+        author: author,
+        date: new Date().toISOString(),
+        type: type
+      };
+
+      comments.push(newComment);
+
+      await GitHubService.saveCommentsData(comments);
+      this.clearCache();
+
+      console.log('✅ Comentário adicionado com sucesso');
     } catch (error) {
-      console.error('Erro ao adicionar comentário:', error);
+      console.error('❌ Erro ao adicionar comentário:', error);
       throw error;
     }
   }
 
-  // Atualizar notas do candidato (apenas para dados locais)
+  // Atualizar notas do candidato
   static async updateCandidateNotes(candidateId: string, notes: string): Promise<void> {
     try {
-      if (candidateId.startsWith('external-')) {
-        throw new Error('Não é possível editar notas de candidatos da fonte externa.');
+      console.log(`🔄 Atualizando notas do candidato ${candidateId}`);
+
+      const candidates = await GitHubService.getCandidatesData();
+      const candidateIndex = candidates.findIndex((c: any) => c.id === candidateId);
+      
+      if (candidateIndex === -1) {
+        throw new Error('Candidato não encontrado');
       }
 
-      const { error } = await supabase
-        .from('candidates')
-        .update({ notes })
-        .eq('id', candidateId);
+      candidates[candidateIndex] = {
+        ...candidates[candidateIndex],
+        notes: notes,
+        lastUpdate: new Date().toISOString()
+      };
 
-      if (error) throw error;
+      await GitHubService.saveCandidatesData(candidates);
+      this.clearCache();
+
+      console.log('✅ Notas atualizadas com sucesso');
     } catch (error) {
-      console.error('Erro ao atualizar notas:', error);
+      console.error('❌ Erro ao atualizar notas:', error);
       throw error;
     }
   }
 
-  // Adicionar lembrete (apenas para dados locais)
+  // Adicionar lembrete
   static async addReminder(candidateId: string, reminder: Omit<Reminder, 'id' | 'createdAt'>): Promise<void> {
     try {
-      if (candidateId.startsWith('external-')) {
-        throw new Error('Não é possível adicionar lembretes a candidatos da fonte externa.');
-      }
+      console.log(`🔄 Adicionando lembrete para candidato ${candidateId}`);
 
-      const { error } = await supabase
-        .from('reminders')
-        .insert({
-          candidate_id: candidateId,
-          type: reminder.type,
-          title: reminder.title,
-          description: reminder.description,
-          due_date: reminder.dueDate,
-          priority: reminder.priority,
-          completed: reminder.completed,
-          created_by: reminder.createdBy
-        });
+      const reminders = await GitHubService.getRemindersData();
 
-      if (error) throw error;
+      const newReminder = {
+        id: `reminder-${Date.now()}`,
+        candidateId: candidateId,
+        type: reminder.type,
+        title: reminder.title,
+        description: reminder.description,
+        dueDate: reminder.dueDate,
+        priority: reminder.priority,
+        completed: reminder.completed,
+        createdBy: reminder.createdBy,
+        createdAt: new Date().toISOString()
+      };
+
+      reminders.push(newReminder);
+
+      await GitHubService.saveRemindersData(reminders);
+      this.clearCache();
+
+      console.log('✅ Lembrete adicionado com sucesso');
     } catch (error) {
-      console.error('Erro ao adicionar lembrete:', error);
+      console.error('❌ Erro ao adicionar lembrete:', error);
       throw error;
     }
   }
 
-  // Atualizar lembrete (apenas para dados locais)
+  // Atualizar lembrete
   static async updateReminder(candidateId: string, reminderId: string, updates: Partial<Reminder>): Promise<void> {
     try {
-      if (candidateId.startsWith('external-')) {
-        throw new Error('Não é possível atualizar lembretes de candidatos da fonte externa.');
+      console.log(`🔄 Atualizando lembrete ${reminderId}`);
+
+      const reminders = await GitHubService.getRemindersData();
+      const reminderIndex = reminders.findIndex((r: any) => r.id === reminderId && r.candidateId === candidateId);
+      
+      if (reminderIndex === -1) {
+        throw new Error('Lembrete não encontrado');
       }
 
-      const updateData: any = {};
-      
-      if (updates.completed !== undefined) updateData.completed = updates.completed;
-      if (updates.title) updateData.title = updates.title;
-      if (updates.description) updateData.description = updates.description;
-      if (updates.dueDate) updateData.due_date = updates.dueDate;
-      if (updates.priority) updateData.priority = updates.priority;
+      reminders[reminderIndex] = {
+        ...reminders[reminderIndex],
+        ...updates,
+        updatedAt: new Date().toISOString()
+      };
 
-      const { error } = await supabase
-        .from('reminders')
-        .update(updateData)
-        .eq('id', reminderId)
-        .eq('candidate_id', candidateId);
+      await GitHubService.saveRemindersData(reminders);
+      this.clearCache();
 
-      if (error) throw error;
+      console.log('✅ Lembrete atualizado com sucesso');
     } catch (error) {
-      console.error('Erro ao atualizar lembrete:', error);
+      console.error('❌ Erro ao atualizar lembrete:', error);
       throw error;
     }
   }
 
-  // Escutar mudanças em tempo real (apenas para dados locais)
+  // Sincronizar dados (força reload do GitHub)
+  static async syncExternalDataToLocal(): Promise<number> {
+    try {
+      console.log('🔄 Sincronizando dados do GitHub...');
+      
+      this.clearCache();
+      const candidates = await this.getAllCandidates();
+      
+      console.log(`✅ ${candidates.length} candidatos sincronizados`);
+      return candidates.length;
+    } catch (error) {
+      console.error('❌ Erro ao sincronizar dados:', error);
+      throw error;
+    }
+  }
+
+  // Método legado para compatibilidade
+  static async importCandidatesFromJSON(): Promise<number> {
+    return await this.syncExternalDataToLocal();
+  }
+
+  // Escutar mudanças (simulado para GitHub)
   static subscribeToChanges(callback: () => void) {
-    const subscription = supabase
-      .channel('candidates_changes')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'candidates' }, 
-        callback
-      )
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'comments' }, 
-        callback
-      )
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'reminders' }, 
-        callback
-      )
-      .subscribe();
+    // Para GitHub, podemos implementar polling
+    const interval = setInterval(async () => {
+      try {
+        // Verificar se há mudanças comparando com cache
+        const currentData = await GitHubService.getCandidatesData();
+        
+        if (this.cache.candidates) {
+          const currentCount = currentData.length;
+          const cacheCount = this.cache.candidates.length;
+          
+          if (currentCount !== cacheCount) {
+            this.clearCache();
+            callback();
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao verificar mudanças:', error);
+      }
+    }, 60000); // Verificar a cada minuto
 
     return () => {
-      supabase.removeChannel(subscription);
+      clearInterval(interval);
     };
   }
 }

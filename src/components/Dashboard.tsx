@@ -8,7 +8,8 @@ import AIAnalysis from './AIAnalysis';
 import RemindersPanel from './RemindersPanel';
 import { Candidate } from '../types/candidate';
 import { CandidateService } from '../services/candidateService';
-import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell, Wifi, WifiOff, AlertCircle, CheckCircle, ExternalLink, Database, FolderSync as Sync } from 'lucide-react';
+import { GitHubService } from '../services/githubService';
+import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell, Wifi, WifiOff, AlertCircle, CheckCircle, ExternalLink, Database, Github } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -38,6 +39,19 @@ const Dashboard: React.FC = () => {
     dataInicio: '',
     dataFim: ''
   });
+
+  // Configurar GitHub Service
+  useEffect(() => {
+    const githubToken = import.meta.env.VITE_GITHUB_TOKEN;
+    if (githubToken && githubToken !== 'your_github_token_here') {
+      GitHubService.setConfig({
+        token: githubToken,
+        owner: import.meta.env.VITE_GITHUB_OWNER || 'PopularAtacarejo',
+        repo: import.meta.env.VITE_GITHUB_REPO || 'VagasPopular',
+        branch: import.meta.env.VITE_GITHUB_BRANCH || 'main'
+      });
+    }
+  }, []);
 
   // Monitorar status de conexão
   useEffect(() => {
@@ -70,7 +84,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // Carregar dados diretamente da fonte externa
+  // Carregar dados do GitHub
   const loadData = async (silent = false) => {
     if (!silent) setLoading(true);
     setError(null);
@@ -81,7 +95,7 @@ const Dashboard: React.FC = () => {
       // Verificar status da fonte primeiro
       const sourceStatus = await checkDataSourceStatus();
       
-      // Carregar dados (sempre tenta da fonte externa primeiro)
+      // Carregar dados do GitHub
       const data = await CandidateService.getAllCandidates();
       console.log(`✅ ${data.length} candidatos carregados`);
       
@@ -90,9 +104,9 @@ const Dashboard: React.FC = () => {
       
       if (!silent) {
         if (sourceStatus.available) {
-          showNotification(`${data.length} candidatos carregados da fonte externa!`, 'success');
+          showNotification(`${data.length} candidatos carregados do GitHub!`, 'success');
         } else {
-          showNotification(`${data.length} candidatos carregados do banco local (fonte externa indisponível)`, 'warning');
+          showNotification(`${data.length} candidatos carregados do cache local (GitHub indisponível)`, 'warning');
         }
       }
     } catch (error) {
@@ -103,46 +117,28 @@ const Dashboard: React.FC = () => {
       if (!silent) {
         showNotification('Erro ao carregar dados. Verifique sua conexão.', 'error');
       }
-      
-      // Fallback para dados locais se offline
-      if (!isOnline) {
-        const savedData = localStorage.getItem('hrSystem_candidates_backup');
-        if (savedData) {
-          try {
-            const backup = JSON.parse(savedData);
-            setOriginalCandidates(backup);
-            showNotification('Dados carregados do cache local', 'warning');
-          } catch (e) {
-            console.error('Erro ao carregar backup local:', e);
-          }
-        }
-      }
     } finally {
       if (!silent) setLoading(false);
     }
   };
 
-  // Sincronizar dados externos com banco local
-  const syncExternalData = async () => {
+  // Sincronizar dados do GitHub
+  const syncGitHubData = async () => {
     setLoading(true);
     setError(null);
     
     try {
-      console.log('🔄 Sincronizando dados externos com banco local...');
+      console.log('🔄 Sincronizando dados do GitHub...');
       
       const sourceStatus = await checkDataSourceStatus();
       if (!sourceStatus.available) {
-        throw new Error('Fonte externa indisponível para sincronização');
+        throw new Error('GitHub indisponível para sincronização');
       }
       
       const syncedCount = await CandidateService.syncExternalDataToLocal();
       
-      if (syncedCount > 0) {
-        showNotification(`${syncedCount} novo(s) candidato(s) sincronizado(s) com o banco local!`, 'success');
-        await loadData(true);
-      } else {
-        showNotification('Nenhum novo candidato para sincronizar', 'info');
-      }
+      showNotification(`${syncedCount} candidatos sincronizados do GitHub!`, 'success');
+      await loadData(true);
     } catch (error) {
       console.error('❌ Erro ao sincronizar dados:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
@@ -168,13 +164,6 @@ const Dashboard: React.FC = () => {
       clearInterval(interval);
     };
   }, [isOnline]);
-
-  // Backup local quando dados mudam
-  useEffect(() => {
-    if (originalCandidates.length > 0) {
-      localStorage.setItem('hrSystem_candidates_backup', JSON.stringify(originalCandidates));
-    }
-  }, [originalCandidates]);
 
   // Filtrar candidatos por aba
   const getFilteredCandidatesByTab = () => {
@@ -449,9 +438,6 @@ const Dashboard: React.FC = () => {
   const showNotification = (message: string, type: 'success' | 'warning' | 'error' | 'info') => {
     // Implementação simples de notificação
     console.log(`${type.toUpperCase()}: ${message}`);
-    
-    // Aqui você pode implementar um sistema de notificação mais sofisticado
-    // Por exemplo, usando react-hot-toast ou similar
   };
 
   // Paginação
@@ -508,9 +494,9 @@ const Dashboard: React.FC = () => {
 
   const getDataSourceStatusText = () => {
     if (dataSourceStatus.available) {
-      return `Fonte externa ativa (${dataSourceStatus.count} registros)`;
+      return `GitHub ativo (${dataSourceStatus.count} registros)`;
     } else {
-      return 'Fonte externa indisponível';
+      return 'GitHub indisponível';
     }
   };
 
@@ -524,7 +510,7 @@ const Dashboard: React.FC = () => {
               Bem-vindo, {user?.name}! 👋
             </h1>
             <p className="text-blue-100 dark:text-blue-200">
-              Sistema de RH com dados em tempo real - {originalCandidates.length} candidatos carregados
+              Sistema de RH com dados salvos no GitHub - {originalCandidates.length} candidatos carregados
             </p>
           </div>
           
@@ -576,25 +562,25 @@ const Dashboard: React.FC = () => {
       )}
 
       {/* Data Source Info */}
-      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
         <div className="flex items-center gap-2 mb-2">
-          <Database className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-          <p className="text-blue-600 dark:text-blue-400 font-medium">Carregamento Automático da Fonte Externa</p>
+          <Github className="w-5 h-5 text-green-600 dark:text-green-400" />
+          <p className="text-green-600 dark:text-green-400 font-medium">Armazenamento no GitHub</p>
         </div>
-        <p className="text-blue-600 dark:text-blue-400 text-sm">
-          ✅ Dados carregados automaticamente e em tempo real da URL: 
+        <p className="text-green-600 dark:text-green-400 text-sm">
+          ✅ Dados salvos e carregados diretamente do GitHub: 
           <br />
-          <code className="bg-blue-100 dark:bg-blue-800 px-2 py-1 rounded text-xs">
-            https://raw.githubusercontent.com/PopularAtacarejo/VagasPopular/main/dados.json
+          <code className="bg-green-100 dark:bg-green-800 px-2 py-1 rounded text-xs">
+            https://github.com/PopularAtacarejo/VagasPopular
           </code>
         </p>
-        <p className="text-blue-600 dark:text-blue-400 text-xs mt-2">
-          🔄 Atualização automática a cada 30 segundos • 📊 Sem dados de demonstração - apenas dados reais
+        <p className="text-green-600 dark:text-green-400 text-xs mt-2">
+          🔄 Sincronização automática • 💾 Dados persistentes • 🌐 Acesso global
         </p>
         <div className="flex items-center gap-2 mt-2">
-          <span className="text-xs text-blue-600 dark:text-blue-400">Status:</span>
+          <span className="text-xs text-green-600 dark:text-green-400">Status:</span>
           {getDataSourceStatusIcon()}
-          <span className="text-xs text-blue-600 dark:text-blue-400">{getDataSourceStatusText()}</span>
+          <span className="text-xs text-green-600 dark:text-green-400">{getDataSourceStatusText()}</span>
         </div>
       </div>
 
@@ -610,12 +596,12 @@ const Dashboard: React.FC = () => {
         </button>
         
         <button
-          onClick={syncExternalData}
+          onClick={syncGitHubData}
           disabled={loading || !isOnline || !dataSourceStatus.available}
           className="flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-colors disabled:opacity-50"
         >
-          <Sync className="w-4 h-4" />
-          Sincronizar com Banco Local
+          <Github className="w-4 h-4" />
+          Sincronizar GitHub
         </button>
         
         <button
@@ -632,7 +618,7 @@ const Dashboard: React.FC = () => {
           className="flex items-center gap-2 px-4 py-2 bg-orange-600 dark:bg-orange-500 text-white rounded-lg hover:bg-orange-700 dark:hover:bg-orange-600 transition-colors disabled:opacity-50"
         >
           <ExternalLink className="w-4 h-4" />
-          Verificar Fonte Externa
+          Verificar GitHub
         </button>
       </div>
 

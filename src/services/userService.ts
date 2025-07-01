@@ -1,4 +1,4 @@
-import { supabase } from '../lib/supabase';
+import { GitHubService } from './githubService';
 
 export interface User {
   id: string;
@@ -11,27 +11,62 @@ export interface User {
 }
 
 export class UserService {
+  // Cache local para usuários
+  private static cache = {
+    users: null as User[] | null,
+    lastUpdate: 0
+  };
+
+  private static readonly CACHE_DURATION = 60 * 1000; // 1 minuto
+
+  // Verificar se cache é válido
+  private static isCacheValid(): boolean {
+    return Date.now() - this.cache.lastUpdate < this.CACHE_DURATION;
+  }
+
+  // Limpar cache
+  private static clearCache(): void {
+    this.cache.users = null;
+    this.cache.lastUpdate = 0;
+  }
+
   // Buscar todos os usuários
   static async getAllUsers(): Promise<User[]> {
     try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .order('created_at', { ascending: false });
+      console.log('🔄 Carregando usuários do GitHub...');
 
-      if (error) throw error;
+      // Verificar cache primeiro
+      if (this.isCacheValid() && this.cache.users) {
+        console.log('✅ Usuários carregados do cache local');
+        return this.cache.users;
+      }
 
-      return data.map(user => ({
+      const usersData = await GitHubService.getUsersData();
+      
+      const users = usersData.map((user: any) => ({
         id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
         department: user.department,
-        isActive: user.is_active,
-        createdAt: user.created_at
+        isActive: user.isActive !== false, // Default true
+        createdAt: user.createdAt || new Date().toISOString()
       }));
+
+      // Atualizar cache
+      this.cache.users = users;
+      this.cache.lastUpdate = Date.now();
+
+      console.log(`✅ ${users.length} usuários carregados do GitHub`);
+      return users;
     } catch (error) {
-      console.error('Erro ao buscar usuários:', error);
+      console.error('❌ Erro ao buscar usuários:', error);
+      
+      // Fallback para cache se disponível
+      if (this.cache.users) {
+        return this.cache.users;
+      }
+      
       throw error;
     }
   }
@@ -44,28 +79,33 @@ export class UserService {
     department: string;
   }): Promise<void> {
     try {
-      console.log('Criando usuário:', userData);
+      console.log('🔄 Criando usuário:', userData.email);
       
-      const { data, error } = await supabase
-        .from('users')
-        .insert({
-          name: userData.name,
-          email: userData.email,
-          role: userData.role,
-          department: userData.department,
-          is_active: true
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('Erro SQL ao criar usuário:', error);
-        throw error;
+      const users = await GitHubService.getUsersData();
+      
+      // Verificar se email já existe
+      if (users.some((u: any) => u.email === userData.email)) {
+        throw new Error('Email já está em uso');
       }
 
-      console.log('Usuário criado com sucesso:', data);
+      const newUser = {
+        id: `user-${Date.now()}`,
+        name: userData.name,
+        email: userData.email,
+        role: userData.role,
+        department: userData.department,
+        isActive: true,
+        createdAt: new Date().toISOString()
+      };
+
+      users.push(newUser);
+
+      await GitHubService.saveUsersData(users);
+      this.clearCache();
+
+      console.log('✅ Usuário criado com sucesso');
     } catch (error) {
-      console.error('Erro ao criar usuário:', error);
+      console.error('❌ Erro ao criar usuário:', error);
       throw error;
     }
   }
@@ -73,22 +113,27 @@ export class UserService {
   // Atualizar usuário
   static async updateUser(userId: string, updates: Partial<User>): Promise<void> {
     try {
-      const updateData: any = {};
+      console.log(`🔄 Atualizando usuário ${userId}`);
       
-      if (updates.name) updateData.name = updates.name;
-      if (updates.email) updateData.email = updates.email;
-      if (updates.role) updateData.role = updates.role;
-      if (updates.department) updateData.department = updates.department;
-      if (updates.isActive !== undefined) updateData.is_active = updates.isActive;
+      const users = await GitHubService.getUsersData();
+      const userIndex = users.findIndex((u: any) => u.id === userId);
+      
+      if (userIndex === -1) {
+        throw new Error('Usuário não encontrado');
+      }
 
-      const { error } = await supabase
-        .from('users')
-        .update(updateData)
-        .eq('id', userId);
+      users[userIndex] = {
+        ...users[userIndex],
+        ...updates,
+        updatedAt: new Date().toISOString()
+      };
 
-      if (error) throw error;
+      await GitHubService.saveUsersData(users);
+      this.clearCache();
+
+      console.log('✅ Usuário atualizado com sucesso');
     } catch (error) {
-      console.error('Erro ao atualizar usuário:', error);
+      console.error('❌ Erro ao atualizar usuário:', error);
       throw error;
     }
   }
@@ -96,115 +141,42 @@ export class UserService {
   // Deletar usuário
   static async deleteUser(userId: string): Promise<void> {
     try {
-      const { error } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', userId);
+      console.log(`🔄 Deletando usuário ${userId}`);
+      
+      const users = await GitHubService.getUsersData();
+      const filteredUsers = users.filter((u: any) => u.id !== userId);
+      
+      if (filteredUsers.length === users.length) {
+        throw new Error('Usuário não encontrado');
+      }
 
-      if (error) throw error;
+      await GitHubService.saveUsersData(filteredUsers);
+      this.clearCache();
+
+      console.log('✅ Usuário deletado com sucesso');
     } catch (error) {
-      console.error('Erro ao deletar usuário:', error);
+      console.error('❌ Erro ao deletar usuário:', error);
       throw error;
     }
   }
 
-  // Buscar usuário por email - VERSÃO SIMPLIFICADA E ROBUSTA
+  // Buscar usuário por email
   static async getUserByEmail(email: string): Promise<User | null> {
     try {
       console.log('🔍 Buscando usuário por email:', email);
       
-      // Tentar múltiplas abordagens para garantir que funcione
+      const users = await this.getAllUsers();
+      const user = users.find(u => u.email === email && u.isActive);
       
-      // 1. Tentar com RPC primeiro
-      try {
-        console.log('📞 Tentando busca via RPC...');
-        const { data: rpcData, error: rpcError } = await supabase
-          .rpc('get_user_by_email', { user_email: email });
-
-        if (!rpcError && rpcData && rpcData.length > 0) {
-          const userData = rpcData[0];
-          console.log('✅ Usuário encontrado via RPC:', userData.name);
-          
-          return {
-            id: userData.id,
-            name: userData.name,
-            email: userData.email,
-            role: userData.role,
-            department: userData.department,
-            isActive: userData.is_active,
-            createdAt: userData.created_at
-          };
-        }
-        
-        console.log('⚠️ RPC não retornou dados, tentando query direta...');
-      } catch (rpcError) {
-        console.log('⚠️ RPC falhou, tentando query direta:', rpcError);
-      }
-
-      // 2. Fallback para query direta
-      console.log('🔍 Tentando query direta...');
-      const { data: directData, error: directError } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (directError) {
-        console.error('❌ Erro na query direta:', directError);
-        
-        // 3. Último recurso: query sem filtro de ativo
-        console.log('🔍 Tentando query sem filtro de ativo...');
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('email', email)
-          .maybeSingle();
-
-        if (fallbackError) {
-          console.error('❌ Erro na query de fallback:', fallbackError);
-          throw fallbackError;
-        }
-
-        if (!fallbackData) {
-          console.log('❌ Usuário não encontrado em nenhuma tentativa');
-          return null;
-        }
-
-        console.log('✅ Usuário encontrado via fallback:', fallbackData.name);
-        
-        return {
-          id: fallbackData.id,
-          name: fallbackData.name,
-          email: fallbackData.email,
-          role: fallbackData.role,
-          department: fallbackData.department,
-          isActive: fallbackData.is_active,
-          createdAt: fallbackData.created_at
-        };
-      }
-
-      if (!directData) {
+      if (user) {
+        console.log('✅ Usuário encontrado:', user.name);
+        return user;
+      } else {
         console.log('❌ Usuário não encontrado:', email);
         return null;
       }
-
-      console.log('✅ Usuário encontrado via query direta:', directData.name);
-      
-      return {
-        id: directData.id,
-        name: directData.name,
-        email: directData.email,
-        role: directData.role,
-        department: directData.department,
-        isActive: directData.is_active,
-        createdAt: directData.created_at
-      };
     } catch (error) {
-      console.error('❌ Erro geral ao buscar usuário por email:', error);
-      
-      // Em caso de erro total, retornar null em vez de throw
-      // para não quebrar o fluxo de autenticação
+      console.error('❌ Erro ao buscar usuário por email:', error);
       return null;
     }
   }

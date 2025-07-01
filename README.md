@@ -1,6 +1,6 @@
 # Sistema RH Moderno
 
-Sistema completo de gestão de recursos humanos com integração Supabase para colaboração em tempo real.
+Sistema completo de gestão de recursos humanos com armazenamento de dados no GitHub para máxima portabilidade e colaboração.
 
 ## 🚀 Funcionalidades
 
@@ -11,7 +11,7 @@ Sistema completo de gestão de recursos humanos com integração Supabase para c
 - Exportação de dados
 
 ### 👥 Gestão de Candidatos
-- Importação automática de currículos
+- Carregamento automático de currículos
 - Acompanhamento de status
 - Sistema de comentários
 - Histórico completo de mudanças
@@ -35,50 +35,52 @@ Sistema completo de gestão de recursos humanos com integração Supabase para c
 - Auditoria de ações
 
 ### 🌐 Recursos Avançados
-- Sincronização em tempo real
+- Sincronização em tempo real com GitHub
 - Modo offline com cache
 - Dark mode
 - Interface responsiva
-- Backup automático
+- Backup automático no GitHub
 
 ## 🛠️ Tecnologias
 
 - **Frontend**: React 18, TypeScript, Tailwind CSS
-- **Backend**: Supabase (PostgreSQL, Auth, Real-time)
+- **Backend**: GitHub API (armazenamento de dados)
 - **Gráficos**: Chart.js
 - **Ícones**: Lucide React
 - **Build**: Vite
 
 ## 📋 Pré-requisitos
 
-1. **Conta Supabase**
-   - Acesse [supabase.com](https://supabase.com)
-   - Crie um novo projeto
-   - Anote a URL e a chave anônima
+1. **Conta GitHub**
+   - Acesse [github.com](https://github.com)
+   - Crie um repositório para armazenar os dados
+   - Gere um Personal Access Token
 
 2. **Node.js 18+**
 
 ## 🚀 Configuração
 
-### 1. Configurar Supabase
+### 1. Configurar GitHub
 
-1. **Criar projeto no Supabase**
-2. **Executar migrations**:
-   - Acesse o SQL Editor no painel do Supabase
-   - Execute o conteúdo do arquivo `supabase/migrations/001_initial_schema.sql`
+1. **Criar repositório no GitHub**
+   - Crie um repositório público ou privado
+   - Anote o nome do proprietário e repositório
 
-3. **Configurar autenticação**:
-   - Vá em Authentication > Settings
-   - Desabilite "Enable email confirmations"
-   - Configure providers conforme necessário
+2. **Gerar Personal Access Token**:
+   - Vá em Settings > Developer settings > Personal access tokens
+   - Gere um token com permissões de `repo`
+   - Anote o token gerado
 
 ### 2. Configurar Variáveis de Ambiente
 
 Crie um arquivo `.env` na raiz do projeto:
 
 ```env
-VITE_SUPABASE_URL=sua_url_do_supabase
-VITE_SUPABASE_ANON_KEY=sua_chave_anonima_do_supabase
+# GitHub Configuration for Data Storage
+VITE_GITHUB_TOKEN=seu_github_token_aqui
+VITE_GITHUB_OWNER=seu_usuario_github
+VITE_GITHUB_REPO=nome_do_repositorio
+VITE_GITHUB_BRANCH=main
 ```
 
 ### 3. Instalar e Executar
@@ -141,27 +143,28 @@ npm run build
 - **Senha**: `convidado123`
 - **Role**: Convidado
 
-## 📊 Estrutura do Banco
+## 📊 Estrutura de Dados no GitHub
 
-### Tabelas Principais
+### Arquivos de Dados
 
-- `users` - Usuários do sistema
-- `candidates` - Candidatos/Currículos
-- `comments` - Comentários dos candidatos
-- `reminders` - Lembretes automáticos e manuais
+- `dados.json` - Candidatos/Currículos
+- `usuarios.json` - Usuários do sistema
+- `comentarios.json` - Comentários dos candidatos
+- `lembretes.json` - Lembretes automáticos e manuais
 
 ### Segurança
 
-- Row Level Security (RLS) habilitado
-- Políticas baseadas em roles
-- Auditoria completa de mudanças
+- Dados armazenados em formato JSON
+- Controle de acesso via GitHub
+- Versionamento automático de mudanças
+- Backup completo no repositório
 
 ## 🔄 Sincronização
 
 ### Tempo Real
-- Mudanças sincronizadas instantaneamente
-- Notificações de atualizações
-- Resolução automática de conflitos
+- Mudanças salvas automaticamente no GitHub
+- Cache local para performance
+- Sincronização automática a cada 30 segundos
 
 ### Modo Offline
 - Cache local automático
@@ -199,25 +202,24 @@ npm run lint     # Linting
 src/
 ├── components/     # Componentes React
 ├── contexts/       # Contextos (Auth, etc)
-├── lib/           # Configurações (Supabase)
-├── services/      # Serviços de API
-├── types/         # Tipos TypeScript
-└── utils/         # Utilitários
+├── services/       # Serviços (GitHub, Candidates, Users)
+├── types/          # Tipos TypeScript
+└── utils/          # Utilitários
 ```
 
 ## 📈 Performance
 
 - Lazy loading de componentes
-- Otimização de queries
 - Cache inteligente
+- Otimização de requests
 - Compressão de assets
 
 ## 🔒 Segurança
 
-- Autenticação JWT
-- Criptografia de dados
-- Validação de entrada
-- Sanitização de dados
+- Autenticação baseada em email/senha
+- Controle de acesso por roles
+- Dados versionados no GitHub
+- Tokens seguros
 
 ## 🚀 Deploy
 
@@ -244,3 +246,12 @@ Para dúvidas ou suporte:
 ## 📄 Licença
 
 Este projeto é proprietário e confidencial.
+
+## 🌟 Vantagens do GitHub Storage
+
+- **Portabilidade**: Dados acessíveis de qualquer lugar
+- **Versionamento**: Histórico completo de mudanças
+- **Colaboração**: Múltiplos desenvolvedores podem contribuir
+- **Backup**: Dados seguros e versionados
+- **Gratuito**: Sem custos de banco de dados
+- **Transparência**: Dados visíveis e auditáveis

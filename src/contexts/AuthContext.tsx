@@ -1,5 +1,4 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
 import { UserService, User } from '../services/userService';
 
 interface AuthContextType {
@@ -20,80 +19,47 @@ export const useAuth = () => {
   return context;
 };
 
+// Senhas padrão para demonstração (em produção, usar hash)
+const DEFAULT_PASSWORDS: Record<string, string> = {
+  'jeferson@sistemahr.com': '873090As#',
+  'admin@empresa.com': 'admin123',
+  'gerente.rh@empresa.com': 'gerente123',
+  'analista.rh@empresa.com': 'analista123',
+  'assistente.rh@empresa.com': 'assistente123',
+  'convidado@empresa.com': 'convidado123'
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    let mounted = true;
-
-    // Verificar sessão atual
-    const checkSession = async () => {
+    // Verificar se há usuário logado no localStorage
+    const checkStoredUser = async () => {
       try {
-        console.log('🔍 Verificando sessão atual...');
-        
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('❌ Erro ao verificar sessão:', error);
-          if (mounted) setLoading(false);
-          return;
-        }
-        
-        if (session?.user) {
-          console.log('✅ Sessão encontrada para:', session.user.email);
-          try {
-            const userData = await UserService.getUserByEmail(session.user.email!);
-            if (userData && mounted) {
-              console.log('✅ Dados do usuário carregados:', userData.name);
-              setUser(userData);
-            } else {
-              console.log('⚠️ Usuário não encontrado na base de dados');
-            }
-          } catch (error) {
-            console.error('❌ Erro ao buscar dados do usuário:', error);
+        const storedUser = localStorage.getItem('hrSystem_currentUser');
+        if (storedUser) {
+          const userData = JSON.parse(storedUser);
+          
+          // Verificar se o usuário ainda existe e está ativo
+          const currentUser = await UserService.getUserByEmail(userData.email);
+          if (currentUser && currentUser.isActive) {
+            setUser(currentUser);
+            console.log('✅ Usuário restaurado da sessão:', currentUser.name);
+          } else {
+            localStorage.removeItem('hrSystem_currentUser');
+            console.log('⚠️ Usuário da sessão não é mais válido');
           }
-        } else {
-          console.log('ℹ️ Nenhuma sessão ativa encontrada');
         }
       } catch (error) {
-        console.error('❌ Erro geral ao verificar sessão:', error);
+        console.error('❌ Erro ao verificar sessão:', error);
+        localStorage.removeItem('hrSystem_currentUser');
       } finally {
-        if (mounted) {
-          console.log('✅ Verificação de sessão concluída');
-          setLoading(false);
-        }
+        setLoading(false);
       }
     };
 
-    checkSession();
-
-    // Escutar mudanças de autenticação
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('🔄 Mudança de estado de auth:', event);
-      
-      if (event === 'SIGNED_IN' && session?.user) {
-        console.log('✅ Usuário logado:', session.user.email);
-        try {
-          const userData = await UserService.getUserByEmail(session.user.email!);
-          if (userData && mounted) {
-            setUser(userData);
-          }
-        } catch (error) {
-          console.error('❌ Erro ao buscar dados do usuário após login:', error);
-        }
-      } else if (event === 'SIGNED_OUT') {
-        console.log('👋 Usuário deslogado');
-        if (mounted) setUser(null);
-      }
-      
-      if (mounted) setLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
+    checkStoredUser();
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
@@ -101,88 +67,44 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('=== INICIANDO PROCESSO DE LOGIN ===');
       console.log('📧 Email:', email);
 
-      // Primeiro verificar se o usuário existe na nossa base
-      let userData: User | null = null;
-      try {
-        console.log('🔍 Verificando usuário na base de dados...');
-        userData = await UserService.getUserByEmail(email);
-        console.log('📊 Resultado da busca:', userData ? `✅ Usuário encontrado: ${userData.name}` : '❌ Usuário não encontrado');
-      } catch (error) {
-        console.error('❌ Erro ao verificar usuário na base:', error);
-        return false;
-      }
-
+      // Verificar se o usuário existe
+      const userData = await UserService.getUserByEmail(email);
+      
       if (!userData) {
-        console.log('❌ Usuário não encontrado na base de dados');
+        console.log('❌ Usuário não encontrado');
         return false;
       }
 
-      console.log(`✅ Usuário encontrado: ${userData.name} - ${userData.role}`);
-
-      // Tentar fazer login com Supabase Auth
-      console.log('🔐 Tentando login no Supabase Auth...');
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
-      });
-
-      if (error) {
-        console.log('⚠️ Erro no login Auth:', error.message);
-        
-        // Se o usuário não existe no Auth, criar conta automaticamente
-        if (error.message.includes('Invalid login credentials') || 
-            error.message.includes('Email not confirmed') ||
-            error.message.includes('User not found')) {
-          
-          console.log('🔄 Criando conta no Supabase Auth automaticamente...');
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-            email,
-            password,
-            options: {
-              emailRedirectTo: undefined, // Desabilitar confirmação por email
-              data: {
-                name: userData.name,
-                role: userData.role,
-                department: userData.department
-              }
-            }
-          });
-
-          if (signUpError) {
-            console.error('❌ Erro ao criar conta:', signUpError);
-            
-            // Se ainda der erro, fazer login direto (modo desenvolvimento)
-            if (signUpError.message.includes('User already registered')) {
-              console.log('⚠️ Usuário já registrado, fazendo login direto...');
-              setUser(userData);
-              return true;
-            }
-            
-            return false;
-          }
-
-          console.log('✅ Conta criada, fazendo login direto...');
-          setUser(userData);
-          return true;
-        } else {
-          console.error('❌ Erro no login:', error);
-          return false;
-        }
+      if (!userData.isActive) {
+        console.log('❌ Usuário inativo');
+        return false;
       }
 
-      // Se o login foi bem-sucedido
-      console.log('✅ Login realizado com sucesso');
+      // Verificar senha (sistema simples para demonstração)
+      const expectedPassword = DEFAULT_PASSWORDS[email];
+      if (!expectedPassword || password !== expectedPassword) {
+        console.log('❌ Senha incorreta');
+        return false;
+      }
+
+      console.log(`✅ Login realizado com sucesso: ${userData.name} - ${userData.role}`);
+      
+      // Salvar usuário na sessão
       setUser(userData);
+      localStorage.setItem('hrSystem_currentUser', JSON.stringify(userData));
+      
       return true;
     } catch (error) {
-      console.error('❌ Erro geral no login:', error);
+      console.error('❌ Erro no login:', error);
       return false;
     }
   };
 
   const register = async (userData: Omit<User, 'id' | 'isActive' | 'createdAt'> & { password: string }): Promise<boolean> => {
     try {
-      // Criar usuário na nossa tabela
+      console.log('🔄 Registrando novo usuário:', userData.email);
+
+      // Criar usuário no GitHub
       await UserService.createUser({
         name: userData.name,
         email: userData.email,
@@ -190,38 +112,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         department: userData.department
       });
 
-      // Criar conta no Supabase Auth
-      const { error } = await supabase.auth.signUp({
-        email: userData.email,
-        password: userData.password,
-        options: {
-          data: {
-            name: userData.name,
-            role: userData.role,
-            department: userData.department
-          }
-        }
-      });
+      // Adicionar senha ao sistema (em produção, usar hash)
+      DEFAULT_PASSWORDS[userData.email] = userData.password;
 
-      if (error) {
-        console.error('Erro ao criar conta:', error);
-        return false;
-      }
-
+      console.log('✅ Usuário registrado com sucesso');
       return true;
     } catch (error) {
-      console.error('Erro no registro:', error);
+      console.error('❌ Erro no registro:', error);
       return false;
     }
   };
 
-  const logout = async () => {
-    try {
-      await supabase.auth.signOut();
-      setUser(null);
-    } catch (error) {
-      console.error('Erro no logout:', error);
-    }
+  const logout = () => {
+    console.log('👋 Fazendo logout...');
+    setUser(null);
+    localStorage.removeItem('hrSystem_currentUser');
+    console.log('✅ Logout realizado com sucesso');
   };
 
   return (
