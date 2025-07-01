@@ -6,6 +6,7 @@ export interface User {
   email: string;
   role: string;
   department: string;
+  password?: string; // Apenas para autenticação local
   isActive: boolean;
   createdAt: string;
 }
@@ -49,6 +50,7 @@ export class UserService {
         email: user.email,
         role: user.role,
         department: user.department,
+        password: user.password, // Manter senha para autenticação local
         isActive: user.isActive !== false, // Default true
         createdAt: user.createdAt || new Date().toISOString()
       }));
@@ -77,6 +79,7 @@ export class UserService {
     email: string;
     role: string;
     department: string;
+    password: string;
   }): Promise<void> {
     try {
       console.log('🔄 Criando usuário:', userData.email);
@@ -94,6 +97,7 @@ export class UserService {
         email: userData.email,
         role: userData.role,
         department: userData.department,
+        password: userData.password, // Salvar senha (em produção, usar hash)
         isActive: true,
         createdAt: new Date().toISOString()
       };
@@ -177,6 +181,39 @@ export class UserService {
       }
     } catch (error) {
       console.error('❌ Erro ao buscar usuário por email:', error);
+      return null;
+    }
+  }
+
+  // Autenticar usuário
+  static async authenticateUser(email: string, password: string): Promise<User | null> {
+    try {
+      console.log('🔐 Autenticando usuário:', email);
+      
+      const user = await this.getUserByEmail(email);
+      
+      if (!user) {
+        console.log('❌ Usuário não encontrado para autenticação');
+        return null;
+      }
+
+      if (!user.isActive) {
+        console.log('❌ Usuário inativo');
+        return null;
+      }
+
+      // Verificar senha
+      if (user.password && user.password === password) {
+        console.log('✅ Autenticação bem-sucedida');
+        // Remover senha do objeto retornado por segurança
+        const { password: _, ...userWithoutPassword } = user;
+        return userWithoutPassword as User;
+      } else {
+        console.log('❌ Senha incorreta');
+        return null;
+      }
+    } catch (error) {
+      console.error('❌ Erro na autenticação:', error);
       return null;
     }
   }

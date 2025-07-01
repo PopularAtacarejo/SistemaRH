@@ -44,22 +44,6 @@ const Login: React.FC = () => {
     if (error) setError('');
   };
 
-  // Credenciais de exemplo para facilitar o teste
-  const fillExampleCredentials = (type: 'admin' | 'jeferson') => {
-    if (type === 'admin') {
-      setFormData({
-        email: 'admin@empresa.com',
-        password: 'admin123'
-      });
-    } else {
-      setFormData({
-        email: 'jeferson@sistemahr.com',
-        password: '873090As#'
-      });
-    }
-    setError('');
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800 p-4 transition-colors duration-200">
       <div className="max-w-md w-full space-y-8">
@@ -77,32 +61,6 @@ const Login: React.FC = () => {
             <p className="text-gray-600 dark:text-gray-400">
               Acesse sua conta para continuar
             </p>
-          </div>
-
-          {/* Credenciais de Exemplo */}
-          <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <AlertCircle className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <p className="text-sm font-medium text-blue-800 dark:text-blue-200">Credenciais de Teste</p>
-            </div>
-            <div className="space-y-2">
-              <button
-                type="button"
-                onClick={() => fillExampleCredentials('jeferson')}
-                className="w-full text-left text-xs bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 p-2 rounded hover:bg-blue-200 dark:hover:bg-blue-700 transition-colors"
-              >
-                <strong>Administrador Principal:</strong><br />
-                jeferson@sistemahr.com / 873090As#
-              </button>
-              <button
-                type="button"
-                onClick={() => fillExampleCredentials('admin')}
-                className="w-full text-left text-xs bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-200 p-2 rounded hover:bg-blue-200 dark:hover:bg-blue-700 transition-colors"
-              >
-                <strong>Admin Sistema:</strong><br />
-                admin@empresa.com / admin123
-              </button>
-            </div>
           </div>
 
           {/* Error message */}

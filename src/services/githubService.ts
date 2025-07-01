@@ -14,12 +14,13 @@ export class GitHubService {
   };
 
   private static readonly API_BASE = 'https://api.github.com';
+  private static readonly RAW_BASE = 'https://raw.githubusercontent.com';
 
   static setConfig(config: Partial<GitHubConfig>) {
     this.config = { ...this.config, ...config };
   }
 
-  // Buscar arquivo do GitHub
+  // Buscar arquivo do GitHub via API
   static async getFile(path: string): Promise<{ content: any; sha: string } | null> {
     try {
       const url = `${this.API_BASE}/repos/${this.config.owner}/${this.config.repo}/contents/${path}`;
@@ -57,6 +58,28 @@ export class GitHubService {
       };
     } catch (error) {
       console.error('Erro ao buscar arquivo do GitHub:', error);
+      throw error;
+    }
+  }
+
+  // Buscar arquivo via raw URL (mais rápido, sem autenticação)
+  static async getRawFile(path: string): Promise<any> {
+    try {
+      const url = `${this.RAW_BASE}/${this.config.owner}/${this.config.repo}/${this.config.branch}/${path}`;
+      
+      const response = await fetch(url, {
+        headers: {
+          'User-Agent': 'Sistema-RH-App'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`GitHub raw file error: ${response.status} ${response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Erro ao buscar arquivo raw do GitHub:', error);
       throw error;
     }
   }
@@ -103,20 +126,34 @@ export class GitHubService {
     }
   }
 
-  // Buscar dados dos candidatos
+  // Buscar dados dos candidatos (sempre do arquivo principal)
   static async getCandidatesData(): Promise<any[]> {
     try {
-      // Primeiro tentar buscar dados.json
+      console.log('🔄 Buscando dados dos candidatos do GitHub...');
+      
+      // Primeiro tentar via raw URL (mais rápido)
+      try {
+        const data = await this.getRawFile('dados.json');
+        if (Array.isArray(data)) {
+          console.log(`✅ ${data.length} candidatos carregados via raw URL`);
+          return data;
+        }
+      } catch (rawError) {
+        console.log('⚠️ Falha ao buscar via raw URL, tentando API...');
+      }
+
+      // Fallback para API
       const file = await this.getFile('dados.json');
       
       if (file && Array.isArray(file.content)) {
+        console.log(`✅ ${file.content.length} candidatos carregados via API`);
         return file.content;
       }
 
-      // Se não encontrar, retornar array vazio
+      console.log('⚠️ Arquivo dados.json não encontrado ou vazio');
       return [];
     } catch (error) {
-      console.error('Erro ao buscar dados dos candidatos:', error);
+      console.error('❌ Erro ao buscar dados dos candidatos:', error);
       return [];
     }
   }
@@ -143,20 +180,37 @@ export class GitHubService {
   // Buscar dados dos usuários
   static async getUsersData(): Promise<any[]> {
     try {
+      console.log('🔄 Buscando dados dos usuários do GitHub...');
+      
+      // Primeiro tentar via raw URL
+      try {
+        const data = await this.getRawFile('usuarios.json');
+        if (Array.isArray(data)) {
+          console.log(`✅ ${data.length} usuários carregados via raw URL`);
+          return data;
+        }
+      } catch (rawError) {
+        console.log('⚠️ Falha ao buscar usuários via raw URL, tentando API...');
+      }
+
+      // Fallback para API
       const file = await this.getFile('usuarios.json');
       
       if (file && Array.isArray(file.content)) {
+        console.log(`✅ ${file.content.length} usuários carregados via API`);
         return file.content;
       }
 
       // Retornar usuários padrão se arquivo não existir
-      return [
+      console.log('⚠️ Arquivo usuarios.json não encontrado, criando usuários padrão');
+      const defaultUsers = [
         {
           id: '1',
           email: 'jeferson@sistemahr.com',
           name: 'Jeferson',
           role: 'Administrador',
           department: 'Desenvolvimento',
+          password: '873090As#',
           isActive: true,
           createdAt: new Date().toISOString()
         },
@@ -166,12 +220,22 @@ export class GitHubService {
           name: 'Administrador Sistema',
           role: 'Administrador',
           department: 'Recursos Humanos',
+          password: 'admin123',
           isActive: true,
           createdAt: new Date().toISOString()
         }
       ];
+
+      // Tentar salvar usuários padrão
+      try {
+        await this.saveUsersData(defaultUsers);
+      } catch (saveError) {
+        console.log('⚠️ Não foi possível salvar usuários padrão no GitHub');
+      }
+
+      return defaultUsers;
     } catch (error) {
-      console.error('Erro ao buscar dados dos usuários:', error);
+      console.error('❌ Erro ao buscar dados dos usuários:', error);
       return [];
     }
   }
@@ -197,6 +261,16 @@ export class GitHubService {
   // Buscar comentários
   static async getCommentsData(): Promise<any[]> {
     try {
+      // Primeiro tentar via raw URL
+      try {
+        const data = await this.getRawFile('comentarios.json');
+        if (Array.isArray(data)) {
+          return data;
+        }
+      } catch (rawError) {
+        // Continuar para API
+      }
+
       const file = await this.getFile('comentarios.json');
       
       if (file && Array.isArray(file.content)) {
@@ -231,6 +305,16 @@ export class GitHubService {
   // Buscar lembretes
   static async getRemindersData(): Promise<any[]> {
     try {
+      // Primeiro tentar via raw URL
+      try {
+        const data = await this.getRawFile('lembretes.json');
+        if (Array.isArray(data)) {
+          return data;
+        }
+      } catch (rawError) {
+        // Continuar para API
+      }
+
       const file = await this.getFile('lembretes.json');
       
       if (file && Array.isArray(file.content)) {
@@ -290,6 +374,46 @@ export class GitHubService {
         available: false, 
         error: error instanceof Error ? error.message : 'Erro desconhecido' 
       };
+    }
+  }
+
+  // Upload de arquivo (para currículos)
+  static async uploadFile(path: string, fileContent: string, fileName: string): Promise<string> {
+    try {
+      if (!this.config.token) {
+        throw new Error('Token do GitHub não configurado para upload');
+      }
+
+      const filePath = `uploads/${fileName}`;
+      const url = `${this.API_BASE}/repos/${this.config.owner}/${this.config.repo}/contents/${filePath}`;
+      
+      const body = {
+        message: `Upload de arquivo: ${fileName}`,
+        content: fileContent, // Já deve estar em base64
+        branch: this.config.branch
+      };
+
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'Authorization': `token ${this.config.token}`,
+          'Content-Type': 'application/json',
+          'User-Agent': 'Sistema-RH-App'
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`Erro no upload: ${response.status} ${response.statusText} - ${errorData.message || ''}`);
+      }
+
+      const result = await response.json();
+      return result.content.download_url;
+    } catch (error) {
+      console.error('Erro ao fazer upload do arquivo:', error);
+      throw error;
     }
   }
 }

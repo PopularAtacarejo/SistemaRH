@@ -19,16 +19,6 @@ export const useAuth = () => {
   return context;
 };
 
-// Senhas padrão para demonstração (em produção, usar hash)
-const DEFAULT_PASSWORDS: Record<string, string> = {
-  'jeferson@sistemahr.com': '873090As#',
-  'admin@empresa.com': 'admin123',
-  'gerente.rh@empresa.com': 'gerente123',
-  'analista.rh@empresa.com': 'analista123',
-  'assistente.rh@empresa.com': 'assistente123',
-  'convidado@empresa.com': 'convidado123'
-};
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -67,23 +57,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log('=== INICIANDO PROCESSO DE LOGIN ===');
       console.log('📧 Email:', email);
 
-      // Verificar se o usuário existe
-      const userData = await UserService.getUserByEmail(email);
+      // Autenticar usuário via GitHub
+      const userData = await UserService.authenticateUser(email, password);
       
       if (!userData) {
-        console.log('❌ Usuário não encontrado');
-        return false;
-      }
-
-      if (!userData.isActive) {
-        console.log('❌ Usuário inativo');
-        return false;
-      }
-
-      // Verificar senha (sistema simples para demonstração)
-      const expectedPassword = DEFAULT_PASSWORDS[email];
-      if (!expectedPassword || password !== expectedPassword) {
-        console.log('❌ Senha incorreta');
+        console.log('❌ Falha na autenticação');
         return false;
       }
 
@@ -109,11 +87,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         name: userData.name,
         email: userData.email,
         role: userData.role,
-        department: userData.department
+        department: userData.department,
+        password: userData.password
       });
-
-      // Adicionar senha ao sistema (em produção, usar hash)
-      DEFAULT_PASSWORDS[userData.email] = userData.password;
 
       console.log('✅ Usuário registrado com sucesso');
       return true;
