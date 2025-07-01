@@ -87,12 +87,15 @@ export class UserService {
       const users = await GitHubService.getUsersData();
       
       // Verificar se email já existe
-      if (users.some((u: any) => u.email === userData.email)) {
-        throw new Error('Email já está em uso');
+      if (users.some((u: any) => u.email.toLowerCase() === userData.email.toLowerCase())) {
+        throw new Error('Este email já está em uso por outro usuário');
       }
 
+      // Gerar ID único
+      const newId = `user-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
       const newUser = {
-        id: `user-${Date.now()}`,
+        id: newId,
         name: userData.name,
         email: userData.email,
         role: userData.role,
@@ -124,6 +127,16 @@ export class UserService {
       
       if (userIndex === -1) {
         throw new Error('Usuário não encontrado');
+      }
+
+      // Verificar se email já existe (se estiver sendo alterado)
+      if (updates.email && updates.email !== users[userIndex].email) {
+        const emailExists = users.some((u: any, index: number) => 
+          index !== userIndex && u.email.toLowerCase() === updates.email!.toLowerCase()
+        );
+        if (emailExists) {
+          throw new Error('Este email já está em uso por outro usuário');
+        }
       }
 
       users[userIndex] = {
@@ -170,7 +183,7 @@ export class UserService {
       console.log('🔍 Buscando usuário por email:', email);
       
       const users = await this.getAllUsers();
-      const user = users.find(u => u.email === email && u.isActive);
+      const user = users.find(u => u.email.toLowerCase() === email.toLowerCase() && u.isActive);
       
       if (user) {
         console.log('✅ Usuário encontrado:', user.name);

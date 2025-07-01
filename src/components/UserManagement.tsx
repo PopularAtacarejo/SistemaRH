@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, UserPlus, Edit, Trash2, Shield, User, Eye, EyeOff } from 'lucide-react';
+import { X, UserPlus, Edit, Trash2, Shield, User, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { UserService, User as UserType } from '../services/userService';
 
@@ -15,6 +15,8 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingUser, setEditingUser] = useState<UserType | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -47,50 +49,108 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
 
   const loadUsers = async () => {
     setLoading(true);
+    setError('');
     try {
+      console.log('🔄 Carregando usuários...');
       const userData = await UserService.getAllUsers();
       setUsers(userData);
+      console.log(`✅ ${userData.length} usuários carregados`);
     } catch (error) {
-      console.error('Erro ao carregar usuários:', error);
-      alert('Erro ao carregar usuários');
+      console.error('❌ Erro ao carregar usuários:', error);
+      setError('Erro ao carregar usuários. Verifique sua conexão.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const clearMessages = () => {
+    setError('');
+    setSuccess('');
+  };
+
+  const validateForm = () => {
+    if (!formData.name.trim()) {
+      setError('Nome é obrigatório');
+      return false;
+    }
     
-    if (!formData.name || !formData.email || !formData.role || !formData.department) {
-      alert('Por favor, preencha todos os campos obrigatórios.');
-      return;
+    if (!formData.email.trim()) {
+      setError('Email é obrigatório');
+      return false;
+    }
+    
+    if (!formData.email.includes('@')) {
+      setError('Email deve ter um formato válido');
+      return false;
+    }
+    
+    if (!editingUser && !formData.password.trim()) {
+      setError('Senha é obrigatória para novos usuários');
+      return false;
+    }
+    
+    if (!formData.role) {
+      setError('Nível de acesso é obrigatório');
+      return false;
+    }
+    
+    if (!formData.department) {
+      setError('Departamento é obrigatório');
+      return false;
     }
 
-    if (!editingUser && !formData.password) {
-      alert('Por favor, defina uma senha para o novo usuário.');
+    // Verificar se email já existe (apenas para novos usuários)
+    if (!editingUser) {
+      const emailExists = users.some(u => u.email.toLowerCase() === formData.email.toLowerCase());
+      if (emailExists) {
+        setError('Este email já está em uso por outro usuário');
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    clearMessages();
+    
+    if (!validateForm()) {
       return;
     }
 
     setLoading(true);
     try {
       if (editingUser) {
-        // Editar usuário existente
-        await UserService.updateUser(editingUser.id, {
-          name: formData.name,
-          email: formData.email,
+        console.log('🔄 Atualizando usuário:', formData.email);
+        
+        // Para edição, não incluir senha se estiver vazia
+        const updateData: any = {
+          name: formData.name.trim(),
+          email: formData.email.trim(),
           role: formData.role,
           department: formData.department
-        });
-        
+        };
+
+        if (formData.password.trim()) {
+          updateData.password = formData.password;
+        }
+
+        await UserService.updateUser(editingUser.id, updateData);
+        setSuccess('Usuário atualizado com sucesso!');
         setEditingUser(null);
       } else {
-        // Criar novo usuário
+        console.log('🔄 Criando novo usuário:', formData.email);
+        
         await UserService.createUser({
-          name: formData.name,
-          email: formData.email,
+          name: formData.name.trim(),
+          email: formData.email.trim(),
           role: formData.role,
-          department: formData.department
+          department: formData.department,
+          password: formData.password
         });
+        
+        setSuccess('Usuário criado com sucesso!');
       }
 
       // Reset form
@@ -102,18 +162,20 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
         department: ''
       });
       setShowCreateForm(false);
+      
+      // Recarregar lista de usuários
       await loadUsers();
       
-      alert(editingUser ? 'Usuário atualizado com sucesso!' : 'Usuário criado com sucesso!');
     } catch (error) {
-      console.error('Erro ao salvar usuário:', error);
-      alert('Erro ao salvar usuário');
+      console.error('❌ Erro ao salvar usuário:', error);
+      setError(error instanceof Error ? error.message : 'Erro ao salvar usuário');
     } finally {
       setLoading(false);
     }
   };
 
   const handleEdit = (user: UserType) => {
+    clearMessages();
     setEditingUser(user);
     setFormData({
       name: user.name,
@@ -127,19 +189,23 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
 
   const handleDelete = async (userId: string) => {
     if (userId === currentUser?.id) {
-      alert('Você não pode excluir sua própria conta.');
+      setError('Você não pode excluir sua própria conta.');
       return;
     }
 
-    if (confirm('Tem certeza que deseja excluir este usuário?')) {
+    const userToDelete = users.find(u => u.id === userId);
+    if (!userToDelete) return;
+
+    if (confirm(`Tem certeza que deseja excluir o usuário "${userToDelete.name}"?`)) {
       setLoading(true);
+      clearMessages();
       try {
         await UserService.deleteUser(userId);
+        setSuccess('Usuário excluído com sucesso!');
         await loadUsers();
-        alert('Usuário excluído com sucesso!');
       } catch (error) {
-        console.error('Erro ao excluir usuário:', error);
-        alert('Erro ao excluir usuário');
+        console.error('❌ Erro ao excluir usuário:', error);
+        setError('Erro ao excluir usuário');
       } finally {
         setLoading(false);
       }
@@ -148,7 +214,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
 
   const toggleUserStatus = async (userId: string) => {
     if (userId === currentUser?.id) {
-      alert('Você não pode desativar sua própria conta.');
+      setError('Você não pode desativar sua própria conta.');
       return;
     }
 
@@ -156,16 +222,43 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
     if (!user) return;
 
     setLoading(true);
+    clearMessages();
     try {
       await UserService.updateUser(userId, { isActive: !user.isActive });
+      setSuccess(`Usuário ${user.isActive ? 'desativado' : 'ativado'} com sucesso!`);
       await loadUsers();
-      alert(`Usuário ${user.isActive ? 'desativado' : 'ativado'} com sucesso!`);
     } catch (error) {
-      console.error('Erro ao alterar status do usuário:', error);
-      alert('Erro ao alterar status do usuário');
+      console.error('❌ Erro ao alterar status do usuário:', error);
+      setError('Erro ao alterar status do usuário');
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleNewUser = () => {
+    clearMessages();
+    setShowCreateForm(true);
+    setEditingUser(null);
+    setFormData({
+      name: '',
+      email: '',
+      password: '',
+      role: '',
+      department: ''
+    });
+  };
+
+  const handleCancel = () => {
+    setShowCreateForm(false);
+    setEditingUser(null);
+    setFormData({
+      name: '',
+      email: '',
+      password: '',
+      role: '',
+      department: ''
+    });
+    clearMessages();
   };
 
   const getRoleColor = (role: string) => {
@@ -204,17 +297,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
           
           <div className="flex items-center gap-3">
             <button
-              onClick={() => {
-                setShowCreateForm(true);
-                setEditingUser(null);
-                setFormData({
-                  name: '',
-                  email: '',
-                  password: '',
-                  role: '',
-                  department: ''
-                });
-              }}
+              onClick={handleNewUser}
               disabled={loading}
               className="flex items-center gap-2 px-4 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors disabled:opacity-50"
             >
@@ -231,12 +314,31 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
           </div>
         </div>
 
+        {/* Messages */}
+        {(error || success) && (
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            {error && (
+              <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-700 dark:text-red-400">
+                <AlertCircle className="w-4 h-4" />
+                <span className="text-sm">{error}</span>
+              </div>
+            )}
+            {success && (
+              <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg text-green-700 dark:text-green-400">
+                <CheckCircle className="w-4 h-4" />
+                <span className="text-sm">{success}</span>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="flex h-full max-h-[calc(90vh-80px)]">
           {/* User List */}
           <div className="flex-1 p-6 overflow-y-auto">
             {loading && !showCreateForm ? (
               <div className="flex items-center justify-center py-8">
                 <div className="w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <span className="ml-3 text-gray-600 dark:text-gray-400">Carregando usuários...</span>
               </div>
             ) : (
               <div className="space-y-4">
@@ -455,17 +557,7 @@ const UserManagement: React.FC<UserManagementProps> = ({ isOpen, onClose }) => {
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowCreateForm(false);
-                      setEditingUser(null);
-                      setFormData({
-                        name: '',
-                        email: '',
-                        password: '',
-                        role: '',
-                        department: ''
-                      });
-                    }}
+                    onClick={handleCancel}
                     disabled={loading}
                     className="flex-1 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 py-2 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
                   >
