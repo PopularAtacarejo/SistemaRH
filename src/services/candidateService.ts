@@ -255,6 +255,56 @@ export class CandidateService {
     }
   }
 
+  // Editar comentário
+  static async editComment(candidateId: string, commentId: string, newText: string): Promise<void> {
+    try {
+      console.log(`🔄 Editando comentário ${commentId}`);
+
+      const comments = await GitHubService.getCommentsData();
+      const commentIndex = comments.findIndex((c: any) => c.id === commentId && c.candidateId === candidateId);
+      
+      if (commentIndex === -1) {
+        throw new Error('Comentário não encontrado');
+      }
+
+      comments[commentIndex] = {
+        ...comments[commentIndex],
+        text: newText,
+        editedAt: new Date().toISOString()
+      };
+
+      await GitHubService.saveCommentsData(comments);
+      this.clearCache();
+
+      console.log('✅ Comentário editado com sucesso');
+    } catch (error) {
+      console.error('❌ Erro ao editar comentário:', error);
+      throw error;
+    }
+  }
+
+  // Excluir comentário
+  static async deleteComment(candidateId: string, commentId: string): Promise<void> {
+    try {
+      console.log(`🔄 Excluindo comentário ${commentId}`);
+
+      const comments = await GitHubService.getCommentsData();
+      const filteredComments = comments.filter((c: any) => !(c.id === commentId && c.candidateId === candidateId));
+      
+      if (filteredComments.length === comments.length) {
+        throw new Error('Comentário não encontrado');
+      }
+
+      await GitHubService.saveCommentsData(filteredComments);
+      this.clearCache();
+
+      console.log('✅ Comentário excluído com sucesso');
+    } catch (error) {
+      console.error('❌ Erro ao excluir comentário:', error);
+      throw error;
+    }
+  }
+
   // Atualizar notas do candidato
   static async updateCandidateNotes(candidateId: string, notes: string): Promise<void> {
     try {
@@ -339,6 +389,28 @@ export class CandidateService {
       console.log('✅ Lembrete atualizado com sucesso');
     } catch (error) {
       console.error('❌ Erro ao atualizar lembrete:', error);
+      throw error;
+    }
+  }
+
+  // Excluir lembrete
+  static async deleteReminder(candidateId: string, reminderId: string): Promise<void> {
+    try {
+      console.log(`🔄 Excluindo lembrete ${reminderId}`);
+
+      const reminders = await GitHubService.getRemindersData();
+      const filteredReminders = reminders.filter((r: any) => !(r.id === reminderId && r.candidateId === candidateId));
+      
+      if (filteredReminders.length === reminders.length) {
+        throw new Error('Lembrete não encontrado');
+      }
+
+      await GitHubService.saveRemindersData(filteredReminders);
+      this.clearCache();
+
+      console.log('✅ Lembrete excluído com sucesso');
+    } catch (error) {
+      console.error('❌ Erro ao excluir lembrete:', error);
       throw error;
     }
   }

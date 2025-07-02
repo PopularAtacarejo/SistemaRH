@@ -1,17 +1,21 @@
 import React, { useState } from 'react';
-import { MessageSquare, User, Calendar, Search, Filter, Eye, Plus, Send, X } from 'lucide-react';
+import { MessageSquare, User, Calendar, Search, Filter, Eye, Plus, Send, X, Edit, Trash2 } from 'lucide-react';
 import { Candidate } from '../types/candidate';
 
 interface CommentsPanelProps {
   candidates: Candidate[];
   onCandidateClick: (candidate: Candidate) => void;
   onAddComment: (candidateId: string, comment: string) => void;
+  onEditComment?: (candidateId: string, commentId: string, newText: string) => void;
+  onDeleteComment?: (candidateId: string, commentId: string) => void;
 }
 
 const CommentsPanel: React.FC<CommentsPanelProps> = ({
   candidates,
   onCandidateClick,
-  onAddComment
+  onAddComment,
+  onEditComment,
+  onDeleteComment
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAuthor, setFilterAuthor] = useState('');
@@ -19,6 +23,8 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
   const [showAddCommentModal, setShowAddCommentModal] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<string>('');
   const [newComment, setNewComment] = useState('');
+  const [editingComment, setEditingComment] = useState<string | null>(null);
+  const [editCommentText, setEditCommentText] = useState('');
 
   // Obter todos os comentários de todos os candidatos
   const getAllComments = () => {
@@ -105,6 +111,25 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
     setNewComment('');
     setSelectedCandidate('');
     setShowAddCommentModal(false);
+  };
+
+  const handleEditComment = (commentId: string, candidateId: string, currentText: string) => {
+    setEditingComment(commentId);
+    setEditCommentText(currentText);
+  };
+
+  const handleSaveEditComment = (commentId: string, candidateId: string) => {
+    if (onEditComment && editCommentText.trim()) {
+      onEditComment(candidateId, commentId, editCommentText.trim());
+      setEditingComment(null);
+      setEditCommentText('');
+    }
+  };
+
+  const handleDeleteComment = (commentId: string, candidateId: string) => {
+    if (onDeleteComment && confirm('Tem certeza que deseja excluir este comentário?')) {
+      onDeleteComment(candidateId, commentId);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -313,9 +338,34 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
                           </span>
                         </div>
 
-                        <p className="text-gray-700 dark:text-gray-300 mb-3">
-                          {comment.text}
-                        </p>
+                        {editingComment === comment.id ? (
+                          <div className="space-y-2 mb-3">
+                            <textarea
+                              value={editCommentText}
+                              onChange={(e) => setEditCommentText(e.target.value)}
+                              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+                              rows={2}
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => handleSaveEditComment(comment.id, comment.candidate.id)}
+                                className="px-3 py-1 bg-green-600 text-white rounded text-xs hover:bg-green-700 transition-colors"
+                              >
+                                Salvar
+                              </button>
+                              <button
+                                onClick={() => setEditingComment(null)}
+                                className="px-3 py-1 bg-gray-500 text-white rounded text-xs hover:bg-gray-600 transition-colors"
+                              >
+                                Cancelar
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="text-gray-700 dark:text-gray-300 mb-3">
+                            {comment.text}
+                          </p>
+                        )}
 
                         <div className="flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
                           <div className="flex items-center gap-1">
@@ -329,13 +379,35 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
                         </div>
                       </div>
 
-                      <button
-                        onClick={() => onCandidateClick(comment.candidate)}
-                        className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded-lg transition-colors ml-4"
-                        title="Ver candidato"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-1 ml-4">
+                        <button
+                          onClick={() => onCandidateClick(comment.candidate)}
+                          className="p-2 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/50 rounded-lg transition-colors"
+                          title="Ver candidato"
+                        >
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        
+                        {onEditComment && (
+                          <button
+                            onClick={() => handleEditComment(comment.id, comment.candidate.id, comment.text)}
+                            className="p-2 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/50 rounded-lg transition-colors"
+                            title="Editar comentário"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                        )}
+                        
+                        {onDeleteComment && (
+                          <button
+                            onClick={() => handleDeleteComment(comment.id, comment.candidate.id)}
+                            className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-lg transition-colors"
+                            title="Excluir comentário"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 );

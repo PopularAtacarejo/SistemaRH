@@ -338,6 +338,46 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const handleEditComment = async (candidateId: string, commentId: string, newText: string) => {
+    try {
+      await CandidateService.editComment(candidateId, commentId, newText);
+      await loadData(true);
+      
+      if (selectedCandidate && selectedCandidate.id === candidateId) {
+        const updatedCandidate = originalCandidates.find(c => c.id === candidateId);
+        if (updatedCandidate) {
+          setSelectedCandidate(updatedCandidate);
+        }
+      }
+      
+      showNotification('Comentário editado com sucesso!', 'success');
+    } catch (error) {
+      console.error('Erro ao editar comentário:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      showNotification(errorMessage, 'error');
+    }
+  };
+
+  const handleDeleteComment = async (candidateId: string, commentId: string) => {
+    try {
+      await CandidateService.deleteComment(candidateId, commentId);
+      await loadData(true);
+      
+      if (selectedCandidate && selectedCandidate.id === candidateId) {
+        const updatedCandidate = originalCandidates.find(c => c.id === candidateId);
+        if (updatedCandidate) {
+          setSelectedCandidate(updatedCandidate);
+        }
+      }
+      
+      showNotification('Comentário excluído com sucesso!', 'success');
+    } catch (error) {
+      console.error('Erro ao excluir comentário:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      showNotification(errorMessage, 'error');
+    }
+  };
+
   const handleUpdateNotes = async (candidateId: string, notes: string) => {
     try {
       await CandidateService.updateCandidateNotes(candidateId, notes);
@@ -391,6 +431,26 @@ const Dashboard: React.FC = () => {
       showNotification('Lembrete atualizado com sucesso!', 'success');
     } catch (error) {
       console.error('Erro ao atualizar lembrete:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+      showNotification(errorMessage, 'error');
+    }
+  };
+
+  const handleDeleteReminder = async (candidateId: string, reminderId: string) => {
+    try {
+      await CandidateService.deleteReminder(candidateId, reminderId);
+      await loadData(true);
+      
+      if (selectedCandidate && selectedCandidate.id === candidateId) {
+        const updatedCandidate = originalCandidates.find(c => c.id === candidateId);
+        if (updatedCandidate) {
+          setSelectedCandidate(updatedCandidate);
+        }
+      }
+      
+      showNotification('Lembrete excluído com sucesso!', 'success');
+    } catch (error) {
+      console.error('Erro ao excluir lembrete:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
       showNotification(errorMessage, 'error');
     }
@@ -644,12 +704,15 @@ const Dashboard: React.FC = () => {
             onCandidateClick={openCandidateModal}
             onAddReminder={handleAddReminder}
             onUpdateReminder={handleUpdateReminder}
+            onDeleteReminder={handleDeleteReminder}
           />
         ) : activeTab === 'comentarios' ? (
           <CommentsPanel 
             candidates={originalCandidates}
             onCandidateClick={openCandidateModal}
             onAddComment={handleAddComment}
+            onEditComment={handleEditComment}
+            onDeleteComment={handleDeleteComment}
           />
         ) : (
           <>
@@ -847,6 +910,9 @@ const Dashboard: React.FC = () => {
           onUpdateNotes={handleUpdateNotes}
           onAddReminder={handleAddReminder}
           onUpdateReminder={handleUpdateReminder}
+          onEditComment={handleEditComment}
+          onDeleteComment={handleDeleteComment}
+          onDeleteReminder={handleDeleteReminder}
         />
       )}
     </div>

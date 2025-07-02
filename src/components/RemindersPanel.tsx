@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Calendar, Clock, AlertTriangle, Plus, Eye, CheckCircle, X, User, Briefcase } from 'lucide-react';
+import { Bell, Calendar, Clock, AlertTriangle, Plus, Eye, CheckCircle, X, User, Briefcase, Trash2, Edit } from 'lucide-react';
 import { Candidate } from '../types/candidate';
 
 interface Reminder {
@@ -19,16 +19,19 @@ interface RemindersPanelProps {
   onCandidateClick: (candidate: Candidate) => void;
   onAddReminder: (candidateId: string, reminder: Reminder) => void;
   onUpdateReminder: (candidateId: string, reminderId: string, updates: any) => void;
+  onDeleteReminder?: (candidateId: string, reminderId: string) => void;
 }
 
 const RemindersPanel: React.FC<RemindersPanelProps> = ({
   candidates,
   onCandidateClick,
   onAddReminder,
-  onUpdateReminder
+  onUpdateReminder,
+  onDeleteReminder
 }) => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<string>('');
+  const [editingReminder, setEditingReminder] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -140,7 +143,7 @@ const RemindersPanel: React.FC<RemindersPanelProps> = ({
       dueDate: formData.dueDate,
       priority: formData.priority,
       completed: false,
-      createdBy: 'Usuário Atual', // Aqui você pode usar o contexto do usuário
+      createdBy: 'Usuário Atual',
       createdAt: new Date().toISOString()
     };
 
@@ -159,6 +162,12 @@ const RemindersPanel: React.FC<RemindersPanelProps> = ({
 
   const handleCompleteReminder = (candidateId: string, reminderId: string) => {
     onUpdateReminder(candidateId, reminderId, { completed: true });
+  };
+
+  const handleDeleteReminder = (candidateId: string, reminderId: string) => {
+    if (onDeleteReminder && confirm('Tem certeza que deseja excluir este lembrete?')) {
+      onDeleteReminder(candidateId, reminderId);
+    }
   };
 
   const getPriorityColor = (priority: string) => {
@@ -345,6 +354,16 @@ const RemindersPanel: React.FC<RemindersPanelProps> = ({
                       >
                         <CheckCircle className="w-4 h-4" />
                       </button>
+
+                      {onDeleteReminder && reminder.type === 'manual' && (
+                        <button
+                          onClick={() => handleDeleteReminder(candidate.id, reminder.id)}
+                          className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-lg transition-colors"
+                          title="Excluir lembrete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -374,7 +393,18 @@ const RemindersPanel: React.FC<RemindersPanelProps> = ({
                         {candidate.nome} • {formatDate(reminder.dueDate)}
                       </p>
                     </div>
-                    <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+                    <div className="flex items-center gap-1">
+                      <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
+                      {onDeleteReminder && reminder.type === 'manual' && (
+                        <button
+                          onClick={() => handleDeleteReminder(candidate.id, reminder.id)}
+                          className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                          title="Excluir lembrete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
               ))}
