@@ -6,10 +6,11 @@ import StatsCards from './StatsCards';
 import InteractiveCharts from './InteractiveCharts';
 import AIAnalysis from './AIAnalysis';
 import RemindersPanel from './RemindersPanel';
+import CommentsPanel from './CommentsPanel';
 import { Candidate } from '../types/candidate';
 import { CandidateService } from '../services/candidateService';
 import { GitHubService } from '../services/githubService';
-import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell, Wifi, WifiOff, AlertCircle, CheckCircle, ExternalLink, Database, Github } from 'lucide-react';
+import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell, Wifi, WifiOff, AlertCircle, CheckCircle, Database, MessageSquare } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -26,7 +27,7 @@ const Dashboard: React.FC = () => {
     count: number;
     error?: string;
   }>({ available: false, count: 0 });
-  const [activeTab, setActiveTab] = useState<'todos' | 'candidatos' | 'aprovados' | 'reprovados' | 'experiencia' | 'ai-analysis' | 'lembretes'>('todos');
+  const [activeTab, setActiveTab] = useState<'todos' | 'candidatos' | 'aprovados' | 'reprovados' | 'experiencia' | 'ai-analysis' | 'lembretes' | 'comentarios'>('todos');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(15);
   const [filters, setFilters] = useState({
@@ -104,9 +105,9 @@ const Dashboard: React.FC = () => {
       
       if (!silent) {
         if (sourceStatus.available) {
-          showNotification(`${data.length} candidatos carregados do GitHub!`, 'success');
+          showNotification(`${data.length} candidatos carregados!`, 'success');
         } else {
-          showNotification(`${data.length} candidatos carregados do cache local (GitHub indisponível)`, 'warning');
+          showNotification(`${data.length} candidatos carregados do cache local`, 'warning');
         }
       }
     } catch (error) {
@@ -128,16 +129,16 @@ const Dashboard: React.FC = () => {
     setError(null);
     
     try {
-      console.log('🔄 Sincronizando dados do GitHub...');
+      console.log('🔄 Sincronizando dados...');
       
       const sourceStatus = await checkDataSourceStatus();
       if (!sourceStatus.available) {
-        throw new Error('GitHub indisponível para sincronização');
+        throw new Error('Fonte de dados indisponível para sincronização');
       }
       
       const syncedCount = await CandidateService.syncExternalDataToLocal();
       
-      showNotification(`${syncedCount} candidatos sincronizados do GitHub!`, 'success');
+      showNotification(`${syncedCount} candidatos sincronizados!`, 'success');
       await loadData(true);
     } catch (error) {
       console.error('❌ Erro ao sincronizar dados:', error);
@@ -247,7 +248,8 @@ const Dashboard: React.FC = () => {
         break;
       case 'ai-analysis':
       case 'lembretes':
-        // Para análise IA e lembretes, não filtrar por status
+      case 'comentarios':
+        // Para análise IA, lembretes e comentários, não filtrar por status
         break;
       default:
         // 'todos' - não filtrar por status
@@ -262,7 +264,7 @@ const Dashboard: React.FC = () => {
 
   // Aplicar filtros
   useEffect(() => {
-    if (activeTab !== 'ai-analysis' && activeTab !== 'lembretes') {
+    if (!['ai-analysis', 'lembretes', 'comentarios'].includes(activeTab)) {
       const filtered = getFilteredCandidatesByTab();
       setCandidates(filtered);
       setCurrentPage(1);
@@ -468,7 +470,8 @@ const Dashboard: React.FC = () => {
       reprovados: originalCandidates.filter(c => c.status === 'reprovado').length,
       experiencia: originalCandidates.filter(c => 
         ['na_experiencia', 'aprovado_experiencia'].includes(c.status)
-      ).length
+      ).length,
+      comentarios: originalCandidates.reduce((total, c) => total + (c.comments?.length || 0), 0)
     };
   };
 
@@ -481,7 +484,8 @@ const Dashboard: React.FC = () => {
     { id: 'reprovados', label: 'Reprovados', icon: UserX, count: counts.reprovados },
     { id: 'experiencia', label: 'Experiência', icon: Users, count: counts.experiencia },
     { id: 'ai-analysis', label: 'Análise IA', icon: Brain, count: null },
-    { id: 'lembretes', label: 'Lembretes', icon: Bell, count: null }
+    { id: 'lembretes', label: 'Lembretes', icon: Bell, count: null },
+    { id: 'comentarios', label: 'Comentários', icon: MessageSquare, count: counts.comentarios }
   ];
 
   const getDataSourceStatusIcon = () => {
@@ -494,9 +498,9 @@ const Dashboard: React.FC = () => {
 
   const getDataSourceStatusText = () => {
     if (dataSourceStatus.available) {
-      return `GitHub ativo (${dataSourceStatus.count} registros)`;
+      return `Fonte ativa (${dataSourceStatus.count} registros)`;
     } else {
-      return 'GitHub indisponível';
+      return 'Fonte indisponível';
     }
   };
 
@@ -510,7 +514,7 @@ const Dashboard: React.FC = () => {
               Bem-vindo, {user?.name}! 👋
             </h1>
             <p className="text-blue-100 dark:text-blue-200">
-              Sistema de RH com dados em tempo real do GitHub • {originalCandidates.length} candidatos carregados
+              Sistema de RH com dados em tempo real • {originalCandidates.length} candidatos carregados
             </p>
           </div>
           
@@ -561,29 +565,6 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Data Source Info */}
-      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-        <div className="flex items-center gap-2 mb-2">
-          <Github className="w-5 h-5 text-green-600 dark:text-green-400" />
-          <p className="text-green-600 dark:text-green-400 font-medium">Fonte de Dados: GitHub em Tempo Real</p>
-        </div>
-        <p className="text-green-600 dark:text-green-400 text-sm">
-          ✅ Dados carregados diretamente do repositório GitHub: 
-          <br />
-          <code className="bg-green-100 dark:bg-green-800 px-2 py-1 rounded text-xs">
-            https://raw.githubusercontent.com/PopularAtacarejo/VagasPopular/main/dados.json
-          </code>
-        </p>
-        <p className="text-green-600 dark:text-green-400 text-xs mt-2">
-          🔄 Sincronização automática • 💾 Dados sempre atualizados • 🤖 IA baseada em dados reais
-        </p>
-        <div className="flex items-center gap-2 mt-2">
-          <span className="text-xs text-green-600 dark:text-green-400">Status:</span>
-          {getDataSourceStatusIcon()}
-          <span className="text-xs text-green-600 dark:text-green-400">{getDataSourceStatusText()}</span>
-        </div>
-      </div>
-
       {/* Action Buttons */}
       <div className="flex flex-wrap gap-4">
         <button
@@ -600,8 +581,8 @@ const Dashboard: React.FC = () => {
           disabled={loading || !isOnline || !dataSourceStatus.available}
           className="flex items-center gap-2 px-4 py-2 bg-green-600 dark:bg-green-500 text-white rounded-lg hover:bg-green-700 dark:hover:bg-green-600 transition-colors disabled:opacity-50"
         >
-          <Github className="w-4 h-4" />
-          Sincronizar GitHub
+          <Database className="w-4 h-4" />
+          Sincronizar Dados
         </button>
         
         <button
@@ -610,15 +591,6 @@ const Dashboard: React.FC = () => {
         >
           <FileSpreadsheet className="w-4 h-4" />
           Exportar CSV
-        </button>
-
-        <button
-          onClick={checkDataSourceStatus}
-          disabled={loading}
-          className="flex items-center gap-2 px-4 py-2 bg-orange-600 dark:bg-orange-500 text-white rounded-lg hover:bg-orange-700 dark:hover:bg-orange-600 transition-colors disabled:opacity-50"
-        >
-          <ExternalLink className="w-4 h-4" />
-          Verificar GitHub
         </button>
       </div>
 
@@ -672,6 +644,12 @@ const Dashboard: React.FC = () => {
             onCandidateClick={openCandidateModal}
             onAddReminder={handleAddReminder}
             onUpdateReminder={handleUpdateReminder}
+          />
+        ) : activeTab === 'comentarios' ? (
+          <CommentsPanel 
+            candidates={originalCandidates}
+            onCandidateClick={openCandidateModal}
+            onAddComment={handleAddComment}
           />
         ) : (
           <>

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Eye, Calendar, MapPin, Briefcase, Users, Download, Phone, FileText } from 'lucide-react';
+import { Eye, Calendar, MapPin, Briefcase, Users, Download, Phone, FileText, MessageSquare } from 'lucide-react';
 import { Candidate } from '../types/candidate';
 import StatusBadge from './StatusBadge';
 import StatusSelect from './StatusSelect';
@@ -93,12 +93,23 @@ const CandidateList: React.FC<CandidateListProps> = ({
                     {(candidate.nome || candidate.name || 'N').charAt(0).toUpperCase()}
                   </div>
                   <div className="ml-4">
-                    <div className="text-sm font-medium text-gray-900 dark:text-white">
+                    <button
+                      onClick={() => onCandidateClick(candidate)}
+                      className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline transition-colors"
+                    >
                       {candidate.nome || candidate.name || 'Nome não informado'}
-                    </div>
+                    </button>
                     <div className="text-sm text-gray-500 dark:text-gray-400">
                       {candidate.email || 'Email não disponível'}
                     </div>
+                    {(candidate.comments && candidate.comments.length > 0) && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <MessageSquare className="w-3 h-3 text-gray-400" />
+                        <span className="text-xs text-gray-400">
+                          {candidate.comments.length} comentário{candidate.comments.length !== 1 ? 's' : ''}
+                        </span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </td>
@@ -153,14 +164,6 @@ const CandidateList: React.FC<CandidateListProps> = ({
               
               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => onCandidateClick(candidate)}
-                    className="inline-flex items-center px-3 py-1.5 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors gap-1"
-                  >
-                    <Eye className="w-4 h-4" />
-                    Ver Detalhes
-                  </button>
-                  
                   {(candidate.arquivo || candidate.resumeUrl) && (
                     <>
                       <button
@@ -168,7 +171,7 @@ const CandidateList: React.FC<CandidateListProps> = ({
                         className="inline-flex items-center px-3 py-1.5 bg-purple-600 dark:bg-purple-500 text-white rounded-lg hover:bg-purple-700 dark:hover:bg-purple-600 transition-colors gap-1"
                       >
                         <Eye className="w-4 h-4" />
-                        Visualizar
+                        Ver CV
                       </button>
                       
                       <a

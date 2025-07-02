@@ -41,6 +41,7 @@ const CandidateModal: React.FC<CandidateModalProps> = ({
   const [isEditingNotes, setIsEditingNotes] = useState(false);
   const [notes, setNotes] = useState(candidate.notes || '');
   const [showReminderForm, setShowReminderForm] = useState(false);
+  const [showResumeViewer, setShowResumeViewer] = useState(false);
   const [reminderForm, setReminderForm] = useState({
     title: '',
     description: '',
@@ -83,13 +84,12 @@ const CandidateModal: React.FC<CandidateModalProps> = ({
       dueDate: reminderForm.dueDate,
       priority: reminderForm.priority,
       completed: false,
-      createdBy: 'Usuário Atual', // Aqui você pode usar o contexto do usuário
+      createdBy: 'Usuário Atual',
       createdAt: new Date().toISOString()
     };
 
     onAddReminder(candidate.id, newReminder);
 
-    // Reset form
     setReminderForm({
       title: '',
       description: '',
@@ -166,7 +166,7 @@ const CandidateModal: React.FC<CandidateModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-700 dark:to-gray-800">
           <div className="flex items-center gap-4">
@@ -180,15 +180,14 @@ const CandidateModal: React.FC<CandidateModalProps> = ({
           </div>
           
           <div className="flex items-center gap-3">
-            {/* Resume Actions */}
             {(candidate.arquivo || candidate.resumeUrl) && (
               <div className="flex gap-2">
                 <button
-                  onClick={() => window.open(candidate.arquivo || candidate.resumeUrl, '_blank')}
+                  onClick={() => setShowResumeViewer(true)}
                   className="flex items-center gap-2 px-3 py-2 bg-blue-600 dark:bg-blue-500 text-white rounded-lg hover:bg-blue-700 dark:hover:bg-blue-600 transition-colors"
                 >
                   <Eye className="w-4 h-4" />
-                  Visualizar
+                  Ver Currículo
                 </button>
                 <a
                   href={candidate.arquivo || candidate.resumeUrl}
@@ -210,7 +209,7 @@ const CandidateModal: React.FC<CandidateModalProps> = ({
           </div>
         </div>
 
-        <div className="flex flex-col lg:flex-row h-full max-h-[calc(90vh-80px)]">
+        <div className="flex h-full max-h-[calc(90vh-80px)]">
           {/* Main Content */}
           <div className="flex-1 p-6 overflow-y-auto">
             {/* Contact Info */}
@@ -331,87 +330,6 @@ const CandidateModal: React.FC<CandidateModalProps> = ({
               )}
             </div>
 
-            {/* Reminders Section */}
-            <div className="mb-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                  <Bell className="w-5 h-5" />
-                  Lembretes ({activeReminders.length} ativos)
-                </h3>
-                <button
-                  onClick={() => setShowReminderForm(true)}
-                  className="flex items-center gap-2 px-3 py-1 text-sm text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/50 rounded-lg transition-colors"
-                >
-                  <Plus className="w-4 h-4" />
-                  Novo Lembrete
-                </button>
-              </div>
-
-              {/* Active Reminders */}
-              {activeReminders.length > 0 && (
-                <div className="space-y-3 mb-4">
-                  {activeReminders.map(reminder => (
-                    <div key={reminder.id} className="bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${getPriorityColor(reminder.priority)}`}>
-                              {getPriorityIcon(reminder.priority)}
-                              {reminder.priority === 'high' ? 'Alta' : reminder.priority === 'medium' ? 'Média' : 'Baixa'}
-                            </span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              Vencimento: {formatDate(reminder.dueDate)}
-                            </span>
-                          </div>
-                          <h4 className="font-medium text-gray-900 dark:text-white">{reminder.title}</h4>
-                          {reminder.description && (
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{reminder.description}</p>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => handleCompleteReminder(reminder.id)}
-                          className="p-1 text-gray-400 hover:text-green-600 dark:hover:text-green-400 transition-colors"
-                          title="Marcar como concluído"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Completed Reminders */}
-              {completedReminders.length > 0 && (
-                <details className="group">
-                  <summary className="cursor-pointer text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
-                    Ver lembretes concluídos ({completedReminders.length})
-                  </summary>
-                  <div className="mt-2 space-y-2">
-                    {completedReminders.map(reminder => (
-                      <div key={reminder.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-3 opacity-60">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h4 className="font-medium text-gray-900 dark:text-white">{reminder.title}</h4>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              Concluído em {formatDate(reminder.dueDate)}
-                            </p>
-                          </div>
-                          <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              )}
-
-              {activeReminders.length === 0 && completedReminders.length === 0 && (
-                <p className="text-gray-500 dark:text-gray-400 text-center py-4 italic">
-                  Nenhum lembrete criado para este candidato
-                </p>
-              )}
-            </div>
-
             {/* Notes Section */}
             <div className="mb-6">
               <div className="flex items-center justify-between mb-3">
@@ -454,58 +372,48 @@ const CandidateModal: React.FC<CandidateModalProps> = ({
               )}
             </div>
 
-            {/* Additional Info */}
-            {candidate.experience && (
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">Experiência</h3>
-                <p className="text-gray-700 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">{candidate.experience}</p>
+            {/* Comments Section */}
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" />
+                  Comentários ({(candidate.comments || []).length})
+                </h3>
               </div>
-            )}
-          </div>
 
-          {/* Comments Section */}
-          <div className="w-full lg:w-96 border-l border-gray-200 dark:border-gray-700 flex flex-col">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                <MessageSquare className="w-5 h-5" />
-                Histórico de Comentários
-              </h3>
-            </div>
-
-            {/* Comments List */}
-            <div className="flex-1 p-6 overflow-y-auto space-y-4">
-              {candidate.comments && candidate.comments.length > 0 ? (
-                candidate.comments.map((comment) => (
-                  <div key={comment.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">
-                        {comment.author}
-                      </span>
-                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                        {new Date(comment.date).toLocaleDateString('pt-BR')} às{' '}
-                        {new Date(comment.date).toLocaleTimeString('pt-BR', { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })}
-                      </span>
+              {/* Comments List */}
+              <div className="space-y-4 mb-4 max-h-60 overflow-y-auto">
+                {candidate.comments && candidate.comments.length > 0 ? (
+                  candidate.comments.map((comment) => (
+                    <div key={comment.id} className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                          {comment.author}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {new Date(comment.date).toLocaleDateString('pt-BR')} às{' '}
+                          {new Date(comment.date).toLocaleTimeString('pt-BR', { 
+                            hour: '2-digit', 
+                            minute: '2-digit' 
+                          })}
+                        </span>
+                      </div>
+                      <p className="text-gray-700 dark:text-gray-300 text-sm">{comment.text}</p>
+                      {comment.type === 'status_change' && (
+                        <span className="inline-block mt-2 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs rounded-full">
+                          Mudança de Status
+                        </span>
+                      )}
                     </div>
-                    <p className="text-gray-700 dark:text-gray-300 text-sm">{comment.text}</p>
-                    {comment.type === 'status_change' && (
-                      <span className="inline-block mt-2 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs rounded-full">
-                        Mudança de Status
-                      </span>
-                    )}
-                  </div>
-                ))
-              ) : (
-                <p className="text-gray-500 dark:text-gray-400 text-center py-8">
-                  Nenhum comentário ainda
-                </p>
-              )}
-            </div>
+                  ))
+                ) : (
+                  <p className="text-gray-500 dark:text-gray-400 text-center py-4 italic">
+                    Nenhum comentário ainda
+                  </p>
+                )}
+              </div>
 
-            {/* Add Comment */}
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700">
+              {/* Add Comment */}
               <div className="flex gap-2">
                 <textarea
                   value={newComment}
@@ -528,92 +436,27 @@ const CandidateModal: React.FC<CandidateModalProps> = ({
         </div>
       </div>
 
-      {/* Reminder Form Modal */}
-      {showReminderForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-60 p-4">
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  Novo Lembrete
-                </h3>
-                <button
-                  onClick={() => setShowReminderForm(false)}
-                  className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Título *
-                </label>
-                <input
-                  type="text"
-                  value={reminderForm.title}
-                  onChange={(e) => setReminderForm(prev => ({ ...prev, title: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  placeholder="Ex: Agendar entrevista"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Descrição
-                </label>
-                <textarea
-                  value={reminderForm.description}
-                  onChange={(e) => setReminderForm(prev => ({ ...prev, description: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  rows={3}
-                  placeholder="Detalhes do lembrete..."
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Data de Vencimento *
-                </label>
-                <input
-                  type="date"
-                  value={reminderForm.dueDate}
-                  onChange={(e) => setReminderForm(prev => ({ ...prev, dueDate: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Prioridade
-                </label>
-                <select
-                  value={reminderForm.priority}
-                  onChange={(e) => setReminderForm(prev => ({ ...prev, priority: e.target.value as any }))}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  <option value="low">Baixa</option>
-                  <option value="medium">Média</option>
-                  <option value="high">Alta</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex gap-3">
+      {/* Resume Viewer Modal */}
+      {showResumeViewer && (candidate.arquivo || candidate.resumeUrl) && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-60 p-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Currículo - {candidateName}
+              </h3>
               <button
-                onClick={handleCreateReminder}
-                className="flex-1 bg-orange-600 dark:bg-orange-500 text-white py-2 px-4 rounded-lg hover:bg-orange-700 dark:hover:bg-orange-600 transition-colors"
+                onClick={() => setShowResumeViewer(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg transition-colors"
               >
-                Criar Lembrete
+                <X className="w-5 h-5" />
               </button>
-              <button
-                onClick={() => setShowReminderForm(false)}
-                className="flex-1 bg-gray-200 dark:bg-gray-600 text-gray-800 dark:text-gray-200 py-2 px-4 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
-              >
-                Cancelar
-              </button>
+            </div>
+            <div className="h-[calc(90vh-120px)]">
+              <iframe
+                src={candidate.arquivo || candidate.resumeUrl}
+                className="w-full h-full"
+                title={`Currículo de ${candidateName}`}
+              />
             </div>
           </div>
         </div>
