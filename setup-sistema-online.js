@@ -3,7 +3,7 @@
 
 console.log('🔧 CONFIGURANDO SISTEMA RH ONLINE...');
 console.log('📂 Repositório: https://github.com/PopularAtacarejo/SistemaRH');
-console.log('🔑 Token: Dados2 (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)');
+console.log('🔑 Token: Dados2 (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)');
 
 // Verificar conectividade com GitHub
 async function verificarConectividade() {
@@ -12,7 +12,7 @@ async function verificarConectividade() {
   try {
     const response = await fetch('https://api.github.com/repos/PopularAtacarejo/SistemaRH', {
       headers: {
-        'Authorization': 'token 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',
+        'Authorization': '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',
         'Accept': 'application/vnd.github.v3+json'
       }
     });
@@ -69,7 +69,7 @@ async function criarUsuarioMaster() {
     try {
       const checkResponse = await fetch('https://api.github.com/repos/PopularAtacarejo/SistemaRH/contents/usuarios.json', {
         headers: {
-          'Authorization': 'token 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',
+          'Authorization': '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',
           'Accept': 'application/vnd.github.v3+json'
         }
       });
@@ -98,7 +98,7 @@ async function criarUsuarioMaster() {
     const response = await fetch('https://api.github.com/repos/PopularAtacarejo/SistemaRH/contents/usuarios.json', {
       method: 'PUT',
       headers: {
-        'Authorization': 'token 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',
+        'Authorization': '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',
         'Accept': 'application/vnd.github.v3+json',
         'Content-Type': 'application/json'
       },
@@ -170,7 +170,7 @@ async function criarArquivoCandidatos() {
     const response = await fetch('https://api.github.com/repos/PopularAtacarejo/SistemaRH/contents/candidatos.json', {
       method: 'PUT',
       headers: {
-        'Authorization': 'token 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',
+        'Authorization': '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',
         'Accept': 'application/vnd.github.v3+json',
         'Content-Type': 'application/json'
       },
