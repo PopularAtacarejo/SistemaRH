@@ -86,14 +86,24 @@ export class SimpleAuthService {
       // Salvar na sessão
       this.saveToSession(this.currentUser);
 
-      // Registrar atividade de login
-      await this.logActivity({
-        userId: user.id,
-        action: 'login',
-        description: `Login realizado por ${user.name}`,
-        userAgent: navigator.userAgent,
-        ip: 'N/A'
-      });
+      // Registrar atividade de login via GitHubDataService
+      try {
+        await GitHubDataService.saveUserActivityLog({
+          userId: user.id,
+          userName: user.name,
+          userRole: user.role,
+          action: 'login',
+          description: `Login realizado por ${user.name}`,
+          userAgent: navigator.userAgent,
+          ip: 'N/A',
+          sessionId: crypto.randomUUID(),
+          severity: 'low',
+          repository: 'SistemaRH',
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        console.warn('⚠️ Erro ao registrar log de login:', error);
+      }
 
       return this.currentUser;
     } catch (error) {
@@ -107,10 +117,18 @@ export class SimpleAuthService {
     
     if (this.currentUser) {
       // Registrar atividade de logout
-      this.logActivity({
+      GitHubDataService.saveUserActivityLog({
         userId: this.currentUser.id,
+        userName: this.currentUser.name,
+        userRole: this.currentUser.role,
         action: 'logout',
-        description: `Logout realizado por ${this.currentUser.name}`
+        description: `Logout realizado por ${this.currentUser.name}`,
+        userAgent: navigator.userAgent,
+        ip: 'N/A',
+        sessionId: crypto.randomUUID(),
+        severity: 'low',
+        repository: 'SistemaRH',
+        timestamp: new Date().toISOString()
       }).catch(console.error);
     }
 
@@ -280,12 +298,24 @@ export class SimpleAuthService {
       await GitHubDataService.saveUsersData(users);
 
       // Registrar atividade
-      await this.logActivity({
-        userId: this.currentUser.id,
-        action: 'create_user',
-        description: `Usuário ${userData.name} criado`,
-        targetUserId: newUser.id
-      });
+      try {
+        await GitHubDataService.saveUserActivityLog({
+          userId: this.currentUser.id,
+          userName: this.currentUser.name,
+          userRole: this.currentUser.role,
+          action: 'create_user',
+          description: `Usuário ${userData.name} criado`,
+          targetName: userData.name,
+          userAgent: navigator.userAgent,
+          ip: 'N/A',
+          sessionId: crypto.randomUUID(),
+          severity: 'medium',
+          repository: 'SistemaRH',
+          timestamp: new Date().toISOString()
+        });
+      } catch (error) {
+        console.warn('⚠️ Erro ao registrar log de criação:', error);
+      }
 
       console.log('✅ Usuário criado com sucesso');
       return true;
@@ -296,25 +326,7 @@ export class SimpleAuthService {
   }
 
   // === LOG DE ATIVIDADES ===
-
-  private static async logActivity(activity: {
-    userId: string;
-    action: string;
-    description: string;
-    targetUserId?: string;
-    userAgent?: string;
-    ip?: string;
-  }): Promise<void> {
-    try {
-      await GitHubDataService.saveUserActivityLog({
-        ...activity,
-        timestamp: new Date().toISOString(),
-        repository: 'SistemaRH'
-      });
-    } catch (error) {
-      console.error('⚠️ Erro ao registrar atividade:', error);
-    }
-  }
+  // Logs agora são registrados diretamente via GitHubDataService
 
   // === VERIFICAÇÕES DE PERMISSÃO ===
 
@@ -358,6 +370,25 @@ export class SimpleAuthService {
       if (!users || users.length === 0) {
         console.log('⚠️ Sistema sem usuários, criando usuário master...');
         await this.createMasterUser();
+        
+        // Registrar inicialização do sistema
+        try {
+          await GitHubDataService.saveUserActivityLog({
+            userId: '1',
+            userName: 'Sistema',
+            userRole: 'Sistema',
+            action: 'system_initialization',
+            description: 'Sistema RH inicializado - usuário master criado',
+            userAgent: navigator.userAgent,
+            ip: 'N/A',
+            sessionId: crypto.randomUUID(),
+            severity: 'high',
+            repository: 'SistemaRH',
+            timestamp: new Date().toISOString()
+          });
+        } catch (error) {
+          console.warn('⚠️ Erro ao registrar log de inicialização:', error);
+        }
       }
     } catch (error) {
       console.warn('⚠️ Não foi possível verificar usuários:', error);
