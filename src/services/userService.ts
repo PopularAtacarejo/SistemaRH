@@ -155,7 +155,7 @@ export class UserService {
   // Buscar todos os usuários
   static async getAllUsers(): Promise<User[]> {
     try {
-      console.log('🔄 Carregando usuários do repositório DadosSistemaRH...');
+      console.log('🔄 Carregando usuários do repositório SistemaRH...');
 
       // Verificar cache primeiro
       if (this.isCacheValid() && this.cache.users) {
@@ -180,7 +180,7 @@ export class UserService {
       this.cache.users = users;
       this.cache.lastUpdate = Date.now();
 
-      console.log(`✅ ${users.length} usuários carregados do repositório DadosSistemaRH`);
+      console.log(`✅ ${users.length} usuários carregados do repositório SistemaRH`);
       return users;
     } catch (error) {
       console.error('❌ Erro ao buscar usuários:', error);
@@ -268,7 +268,7 @@ export class UserService {
         console.warn('⚠️ Erro ao registrar auditoria:', auditError);
       }
 
-      console.log('✅ Usuário criado com sucesso no repositório DadosSistemaRH');
+      console.log('✅ Usuário criado com sucesso no repositório SistemaRH');
     } catch (error) {
       console.error('❌ Erro ao criar usuário:', error);
       throw error;
@@ -351,7 +351,7 @@ export class UserService {
         console.warn('⚠️ Erro ao registrar auditoria:', auditError);
       }
 
-      console.log('✅ Usuário atualizado com sucesso no repositório DadosSistemaRH');
+      console.log('✅ Usuário atualizado com sucesso no repositório SistemaRH');
     } catch (error) {
       console.error('❌ Erro ao atualizar usuário:', error);
       throw error;
@@ -410,7 +410,7 @@ export class UserService {
         }
       }
 
-      console.log('✅ Usuário deletado com sucesso do repositório DadosSistemaRH');
+      console.log('✅ Usuário deletado com sucesso do repositório SistemaRH');
     } catch (error) {
       console.error('❌ Erro ao deletar usuário:', error);
       throw error;

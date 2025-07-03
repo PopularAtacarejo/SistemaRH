@@ -50,12 +50,13 @@ export class GitHubDataService {
 
   static async getUsersData(): Promise<any[]> {
     try {
-      console.log('🔄 Buscando dados dos usuários do repositório DadosSistemaRH...');
+      console.log('🔄 Buscando dados dos usuários do repositório SistemaRH...');
+      console.log('📂 URL: https://github.com/PopularAtacarejo/SistemaRH/blob/main/usuarios.json');
       
       const file = await this.getUserFile('usuarios.json');
       
       if (file && Array.isArray(file.content)) {
-        console.log(`✅ ${file.content.length} usuários carregados do repositório de dados`);
+        console.log(`✅ ${file.content.length} usuários carregados do repositório SistemaRH`);
         return file.content;
       }
 
@@ -83,7 +84,8 @@ export class GitHubDataService {
           createdAt: new Date().toISOString(),
           createdBy: 'Sistema Inicial',
           lastUpdate: new Date().toISOString(),
-          description: 'Usuário master - Desenvolvedor principal do sistema'
+          description: 'Usuário master - Desenvolvedor principal do sistema',
+          repository: 'SistemaRH'
         }
       ];
 
@@ -104,7 +106,7 @@ export class GitHubDataService {
       const usersWithMetadata = users.map(user => ({
         ...user,
         lastUpdate: new Date().toISOString(),
-        repository: 'DadosSistemaRH'
+        repository: 'SistemaRH'
       }));
 
       await this.saveUserFile(
@@ -114,7 +116,7 @@ export class GitHubDataService {
         sha
       );
 
-      console.log('✅ Dados dos usuários salvos no repositório DadosSistemaRH');
+      console.log('✅ Dados dos usuários salvos no repositório SistemaRH');
     } catch (error) {
       console.error('❌ Erro ao salvar dados dos usuários:', error);
       throw error;
@@ -131,7 +133,7 @@ export class GitHubDataService {
         ...activityLog,
         id: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
-        repository: 'DadosSistemaRH'
+        repository: 'SistemaRH'
       });
 
       // Manter apenas os últimos 5000 registros
@@ -160,7 +162,7 @@ export class GitHubDataService {
       const commentsWithMetadata = comments.map(comment => ({
         ...comment,
         savedAt: new Date().toISOString(),
-        repository: 'DadosSistemaRH'
+        repository: 'SistemaRH'
       }));
 
       await this.saveUserFile(
@@ -189,7 +191,7 @@ export class GitHubDataService {
         changes,
         changedBy,
         timestamp: new Date().toISOString(),
-        repository: 'DadosSistemaRH'
+        repository: 'SistemaRH'
       });
 
       // Manter apenas os últimos 2000 registros
