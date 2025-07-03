@@ -67,7 +67,7 @@ async function criarUsuarioMaster() {
     // Verificar se arquivo já existe
     let sha = null;
     try {
-      const checkResponse = await fetch('https://api.github.com/repos/PopularAtacarejo/SistemaRH/contents/usuarios.json', {
+      const checkResponse = await fetch('https://raw.githubusercontent.com/PopularAtacarejo/SistemaRH/refs/heads/main/usuarios.json', {
         headers: {
           'Authorization': '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',
           'Accept': 'application/vnd.github.v3+json'
