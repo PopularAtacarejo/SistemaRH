@@ -1,1 +1,25 @@
-[]
+[
+  {
+    "id": "1",
+    "email": "jeferson@sistemahr.com",
+    "name": "Jeferson",
+    "role": "Desenvolvedor",
+    "department": "Desenvolvimento",
+    "password": "873090As#27",
+    "isActive": true,
+    "isMaster": true,
+    "permissions": {
+      "canCreateUsers": true,
+      "canEditUsers": true,
+      "canDeleteUsers": true,
+      "canManageRoles": true,
+      "canViewAudit": true,
+      "canManageSystem": true,
+      "canAccessAllData": true
+    },
+    "createdAt": "2024-01-15T10:00:00Z",
+    "createdBy": "Sistema Inicial",
+    "lastUpdate": "2024-01-15T10:00:00Z",
+    "description": "Usuário master - Desenvolvedor principal do sistema"
+  }
+]
