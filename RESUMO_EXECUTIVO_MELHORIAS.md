@@ -41,9 +41,10 @@ O Sistema RH Moderno foi **completamente analisado e melhorado** com foco em **s
   - `user-profile-changes.json` - Histórico de alterações de perfil
   - `password-resets.json` - Tokens de recuperação de senha
 
-#### 📊 **VagasPopular** (Dados de Candidatos)
+#### 📊 **VagasPopular** (Dados de Candidatos/Vagas)
 - **URL**: https://github.com/PopularAtacarejo/VagasPopular
-- **Token**: Via variável de ambiente (existente)
+- **Token**: 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 (CONSULTARVAGAS)
+- **Arquivo Principal**: dados.json
 - **Conteúdo**:
   - `dados.json` - Dados dos candidatos
   - `comentarios.json` - Comentários sobre candidatos

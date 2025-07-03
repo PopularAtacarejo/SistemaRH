@@ -14,17 +14,19 @@ export class GitHubDataService {
     branch: 'main'
   };
 
-  // Configuração para dados de candidatos (repositório original)
+  // Configuração para dados de candidatos/vagas (repositório VagasPopular)
   private static candidateDataConfig: GitHubDataConfig = {
     owner: 'PopularAtacarejo',
     repo: 'VagasPopular',
-    token: '', // Será configurado via env
+    token: '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', // Token CONSULTARVAGAS
     branch: 'main'
   };
 
   private static readonly API_BASE = 'https://api.github.com';
 
+  // Método mantido para compatibilidade, mas agora token está hardcoded
   static setCandidateConfig(config: Partial<GitHubDataConfig>) {
+    console.warn('⚠️ Token CONSULTARVAGAS está hardcoded por segurança. Configuração parcial aplicada.');
     this.candidateDataConfig = { ...this.candidateDataConfig, ...config };
   }
 
@@ -211,40 +213,62 @@ export class GitHubDataService {
     return this.saveFile(path, content, message, this.candidateDataConfig, sha);
   }
 
+  // Buscar dados de candidatos/vagas do arquivo dados.json
   static async getCandidatesData(): Promise<any[]> {
     try {
-      console.log('🔄 Buscando dados dos candidatos do repositório VagasPopular...');
+      console.log('🔄 Buscando dados dos candidatos/vagas do repositório VagasPopular...');
+      console.log('📂 Arquivo: https://github.com/PopularAtacarejo/VagasPopular/blob/main/dados.json');
       
       const file = await this.getCandidateFile('dados.json');
       
       if (file && Array.isArray(file.content)) {
-        console.log(`✅ ${file.content.length} candidatos carregados`);
+        console.log(`✅ ${file.content.length} candidatos/vagas carregados do dados.json`);
         return file.content;
       }
 
       console.log('⚠️ Arquivo dados.json não encontrado ou vazio');
       return [];
     } catch (error) {
-      console.error('❌ Erro ao buscar dados dos candidatos:', error);
+      console.error('❌ Erro ao buscar dados dos candidatos/vagas:', error);
       return [];
     }
   }
 
+  // Alias específico para vagas (mesmo arquivo dados.json)
+  static async getVagasData(): Promise<any[]> {
+    return this.getCandidatesData();
+  }
+
   static async saveCandidatesData(candidates: any[]): Promise<void> {
     try {
+      console.log('💾 Salvando dados de candidatos/vagas no repositório VagasPopular...');
       const currentFile = await this.getCandidateFile('dados.json');
       const sha = currentFile?.sha;
 
+      // Adicionar metadados de atualização
+      const candidatesWithMetadata = candidates.map(candidate => ({
+        ...candidate,
+        lastUpdate: new Date().toISOString(),
+        repository: 'VagasPopular'
+      }));
+
       await this.saveCandidateFile(
         'dados.json',
-        candidates,
-        `Atualização automática dos dados - ${new Date().toISOString()}`,
+        candidatesWithMetadata,
+        `Atualização dos candidatos/vagas - ${new Date().toISOString()}`,
         sha
       );
+
+      console.log('✅ Dados de candidatos/vagas salvos no dados.json');
     } catch (error) {
-      console.error('❌ Erro ao salvar dados dos candidatos:', error);
+      console.error('❌ Erro ao salvar dados dos candidatos/vagas:', error);
       throw error;
     }
+  }
+
+  // Alias específico para salvar vagas (mesmo arquivo dados.json)
+  static async saveVagasData(vagas: any[]): Promise<void> {
+    return this.saveCandidatesData(vagas);
   }
 
   // === MÉTODOS GENÉRICOS ===

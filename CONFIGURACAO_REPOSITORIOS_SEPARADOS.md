@@ -10,10 +10,12 @@ O sistema agora utiliza **dois repositórios GitHub separados** para melhor orga
 - **Nome do Token**: DADOS2
 - **Finalidade**: Dados sensíveis de usuários, comentários sobre usuários, alterações de perfil
 
-### 📊 Repositório de Dados de Candidatos  
+### 📊 Repositório de Dados de Candidatos/Vagas  
 - **URL**: https://github.com/PopularAtacarejo/VagasPopular
-- **Token**: Via variável de ambiente VITE_GITHUB_TOKEN
-- **Finalidade**: Dados de candidatos, currículos, comentários sobre candidatos
+- **Token**: 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
+- **Nome do Token**: CONSULTARVAGAS
+- **Arquivo Principal**: dados.json
+- **Finalidade**: Dados de candidatos, vagas, currículos, comentários sobre candidatos
 
 ## 🗂️ Estrutura de Arquivos por Repositório
 
@@ -48,15 +50,16 @@ VagasPopular/
 ```bash
 # === CONFIGURAÇÃO DE REPOSITÓRIOS ===
 
-# Repositório para dados de CANDIDATOS (VagasPopular)
-VITE_GITHUB_TOKEN=seu_token_para_candidatos_aqui
-VITE_GITHUB_OWNER=PopularAtacarejo
-VITE_GITHUB_REPO=VagasPopular
-VITE_GITHUB_BRANCH=main
-
-# Repositório para dados de USUÁRIOS (DadosSistemaRH) - Configurado automaticamente
+# Repositório para dados de USUÁRIOS (DadosSistemaRH) - Hardcoded
 # Token DADOS2: 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
-# Este token está hardcoded no código por segurança específica
+# Este token está hardcoded no código por segurança
+
+# Repositório para dados de CANDIDATOS/VAGAS (VagasPopular) - Hardcoded  
+# Token CONSULTARVAGAS: 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
+# Este token está hardcoded no código para acessar dados.json
+
+# Ambos os tokens estão configurados automaticamente no código
+# Não é necessário configurar via variáveis de ambiente
 
 # === CONFIGURAÇÕES DE SEGURANÇA ===
 VITE_PASSWORD_SALT=sua_chave_secreta_super_complexa_aqui_2024
@@ -171,11 +174,11 @@ migrateToDualRepos().catch(console.error);
 ```typescript
 // src/config/github-tokens.ts
 export const GITHUB_TOKENS = {
-  // Token para dados de usuários (hardcoded por segurança)
+  // Token DADOS2 para dados de usuários (hardcoded por segurança)
   USER_DATA: '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',
   
-  // Token para dados de candidatos (via env)
-  CANDIDATE_DATA: import.meta.env.VITE_GITHUB_TOKEN
+  // Token CONSULTARVAGAS para dados de candidatos/vagas (hardcoded)
+  CANDIDATE_DATA: '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'
 };
 
 export const REPOSITORIES = {
@@ -194,16 +197,18 @@ export const REPOSITORIES = {
 
 ### Permissões Necessárias
 ```yaml
-# Permissões para Token DADOS2 (usuários)
+# Permissões para Token DADOS2 (usuários - DadosSistemaRH)
 permissions:
   - repo (acesso completo ao repositório DadosSistemaRH)
   - read:user (leitura de dados do usuário)
   - user:email (acesso aos emails)
 
-# Permissões para Token de candidatos  
+# Permissões para Token CONSULTARVAGAS (candidatos/vagas - VagasPopular)
 permissions:
   - repo (acesso completo ao repositório VagasPopular)
   - read:user (leitura de dados do usuário)
+  - contents:read (leitura do arquivo dados.json)
+  - contents:write (escrita no arquivo dados.json)
 ```
 
 ## 📊 Monitoramento da Nova Estrutura
@@ -296,9 +301,9 @@ graph TD
 
 [build.environment]
   NODE_VERSION = "18"
-  # Token para candidatos via env
-  VITE_GITHUB_TOKEN = "seu_token_candidatos"
-  # Token para usuários está hardcoded no código
+  # Todos os tokens estão hardcoded no código por segurança
+  # Token DADOS2 e CONSULTARVAGAS estão configurados automaticamente
+  # Não são necessárias variáveis de ambiente para tokens
 
 [[redirects]]
   from = "/*"
@@ -313,8 +318,8 @@ graph TD
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "env": {
-    "VITE_GITHUB_TOKEN": "@github_token_candidatos",
-    "VITE_ENABLE_DUAL_REPO": "true"
+    "VITE_ENABLE_DUAL_REPO": "true",
+    "VITE_ENVIRONMENT": "production"
   }
 }
 ```
