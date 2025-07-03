@@ -10,7 +10,7 @@ export class GitHubDataService {
   private static mainConfig: GitHubDataConfig = {
     owner: 'PopularAtacarejo',
     repo: 'SistemaRH',
-    token: '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', // Token CONSULTARVAGAS
+    token: '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', // Token Dados2
     branch: 'main'
   };
 
@@ -18,15 +18,15 @@ export class GitHubDataService {
   private static userDataConfig: GitHubDataConfig = {
     owner: 'PopularAtacarejo',
     repo: 'SistemaRH',
-    token: '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', // Token CONSULTARVAGAS
+    token: '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', // Token Dados2
     branch: 'main'
   };
 
-  // Apenas dados de vagas/candidatos (sem alteração)
+  // Dados de candidatos também no SistemaRH
   private static candidateDataConfig: GitHubDataConfig = {
     owner: 'PopularAtacarejo',
-    repo: 'VagasPopular',
-    token: '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', // Token CONSULTARVAGAS
+    repo: 'SistemaRH',
+    token: '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', // Token Dados2
     branch: 'main'
   };
 
@@ -222,20 +222,22 @@ export class GitHubDataService {
     return this.saveFile(path, content, message, this.candidateDataConfig, sha);
   }
 
-  // Buscar dados de candidatos/vagas do arquivo dados.json
+  // Buscar dados de candidatos/vagas do arquivo candidatos.json
   static async getCandidatesData(): Promise<any[]> {
     try {
-      console.log('🔄 Buscando dados dos candidatos/vagas do repositório VagasPopular...');
-      console.log('📂 Arquivo: https://github.com/PopularAtacarejo/VagasPopular/blob/main/dados.json');
+      console.log('🔄 Buscando dados dos candidatos/vagas do repositório SistemaRH...');
+      console.log('📂 Arquivo: https://github.com/PopularAtacarejo/SistemaRH/blob/main/candidatos.json');
       
-      const file = await this.getCandidateFile('dados.json');
+      const file = await this.getCandidateFile('candidatos.json');
       
       if (file && Array.isArray(file.content)) {
-        console.log(`✅ ${file.content.length} candidatos/vagas carregados do dados.json`);
+        console.log(`✅ ${file.content.length} candidatos/vagas carregados do SistemaRH`);
         return file.content;
       }
 
-      console.log('⚠️ Arquivo dados.json não encontrado ou vazio');
+      console.log('⚠️ Arquivo candidatos.json não encontrado, criando arquivo inicial...');
+      // Criar arquivo inicial vazio
+      await this.saveCandidatesData([]);
       return [];
     } catch (error) {
       console.error('❌ Erro ao buscar dados dos candidatos/vagas:', error);
@@ -250,25 +252,25 @@ export class GitHubDataService {
 
   static async saveCandidatesData(candidates: any[]): Promise<void> {
     try {
-      console.log('💾 Salvando dados de candidatos/vagas no repositório VagasPopular...');
-      const currentFile = await this.getCandidateFile('dados.json');
+      console.log('💾 Salvando dados de candidatos/vagas no repositório SistemaRH...');
+      const currentFile = await this.getCandidateFile('candidatos.json');
       const sha = currentFile?.sha;
 
       // Adicionar metadados de atualização
       const candidatesWithMetadata = candidates.map(candidate => ({
         ...candidate,
         lastUpdate: new Date().toISOString(),
-        repository: 'VagasPopular'
+        repository: 'SistemaRH'
       }));
 
       await this.saveCandidateFile(
-        'dados.json',
+        'candidatos.json',
         candidatesWithMetadata,
         `Atualização dos candidatos/vagas - ${new Date().toISOString()}`,
         sha
       );
 
-      console.log('✅ Dados de candidatos/vagas salvos no dados.json');
+      console.log('✅ Dados de candidatos/vagas salvos no SistemaRH');
     } catch (error) {
       console.error('❌ Erro ao salvar dados dos candidatos/vagas:', error);
       throw error;
@@ -449,7 +451,7 @@ export class GitHubDataService {
 
       // Verificar arquivos do repositório de candidatos
       try {
-        const candidateFile = await this.getCandidateFile('dados.json');
+        const candidateFile = await this.getCandidateFile('candidatos.json');
         if (candidateFile) {
           candidateRepoStats.files = 1;
           candidateRepoStats.lastUpdate = new Date().toISOString();

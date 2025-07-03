@@ -1,11 +1,17 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { UserService, User } from '../services/userService';
+import { SimpleAuthService, SimpleUser } from '../services/simpleAuthService';
 
 interface AuthContextType {
-  user: User | null;
+  user: SimpleUser | null;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
-  register: (userData: Omit<User, 'id' | 'isActive' | 'createdAt'> & { password: string }) => Promise<boolean>;
+  register: (userData: {
+    name: string;
+    email: string;
+    role: string;
+    department: string;
+    password: string;
+  }) => Promise<boolean>;
   loading: boolean;
 }
 
@@ -20,45 +26,39 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<SimpleUser | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Verificar se há usuário logado no localStorage
-    const checkStoredUser = async () => {
+    // Inicializar serviço de autenticação e verificar sessão
+    const initializeAuth = async () => {
       try {
-        const storedUser = localStorage.getItem('hrSystem_currentUser');
-        if (storedUser) {
-          const userData = JSON.parse(storedUser);
-          
-          // Verificar se o usuário ainda existe e está ativo
-          const currentUser = await UserService.getUserByEmail(userData.email);
-          if (currentUser && currentUser.isActive) {
-            setUser(currentUser);
-            console.log('✅ Usuário restaurado da sessão:', currentUser.name);
-          } else {
-            localStorage.removeItem('hrSystem_currentUser');
-            console.log('⚠️ Usuário da sessão não é mais válido');
-          }
+        await SimpleAuthService.initialize();
+        
+        const currentUser = SimpleAuthService.getCurrentUser();
+        if (currentUser) {
+          setUser(currentUser);
+          console.log('✅ Usuário restaurado da sessão:', currentUser.name);
+        } else {
+          console.log('📝 Nenhuma sessão ativa');
         }
       } catch (error) {
-        console.error('❌ Erro ao verificar sessão:', error);
-        localStorage.removeItem('hrSystem_currentUser');
+        console.error('❌ Erro ao inicializar autenticação:', error);
       } finally {
         setLoading(false);
       }
     };
 
-    checkStoredUser();
+    initializeAuth();
   }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
-      console.log('=== INICIANDO PROCESSO DE LOGIN ===');
+      console.log('=== INICIANDO PROCESSO DE LOGIN SIMPLIFICADO ===');
       console.log('📧 Email:', email);
 
-      // Autenticar usuário via GitHub
-      const userData = await UserService.authenticateUser(email, password);
+      // Autenticar usuário via SimpleAuthService
+      const userData = await SimpleAuthService.login(email, password);
       
       if (!userData) {
         console.log('❌ Falha na autenticação');
@@ -67,9 +67,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       console.log(`✅ Login realizado com sucesso: ${userData.name} - ${userData.role}`);
       
-      // Salvar usuário na sessão
+      // Atualizar estado
       setUser(userData);
-      localStorage.setItem('hrSystem_currentUser', JSON.stringify(userData));
       
       return true;
     } catch (error) {
@@ -78,21 +77,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (userData: Omit<User, 'id' | 'isActive' | 'createdAt'> & { password: string }): Promise<boolean> => {
+  const register = async (userData: {
+    name: string;
+    email: string;
+    role: string;
+    department: string;
+    password: string;
+  }): Promise<boolean> => {
     try {
       console.log('🔄 Registrando novo usuário:', userData.email);
 
-      // Criar usuário no GitHub
-      await UserService.createUser({
-        name: userData.name,
-        email: userData.email,
-        role: userData.role,
-        department: userData.department,
-        password: userData.password
-      });
+      // Criar usuário via SimpleAuthService
+      const success = await SimpleAuthService.createUser(userData);
 
-      console.log('✅ Usuário registrado com sucesso');
-      return true;
+      if (success) {
+        console.log('✅ Usuário registrado com sucesso');
+        return true;
+      } else {
+        console.log('❌ Falha no registro');
+        return false;
+      }
     } catch (error) {
       console.error('❌ Erro no registro:', error);
       return false;
@@ -101,8 +105,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     console.log('👋 Fazendo logout...');
+    SimpleAuthService.logout();
     setUser(null);
-    localStorage.removeItem('hrSystem_currentUser');
     console.log('✅ Logout realizado com sucesso');
   };
 
