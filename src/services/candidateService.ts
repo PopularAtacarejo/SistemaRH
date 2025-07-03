@@ -89,7 +89,9 @@ export class CandidateService {
               text: c.text,
               author: c.author,
               date: c.date,
-              type: c.type as 'comment' | 'status_change'
+              type: c.type as 'comment' | 'status_change',
+              editedAt: c.editedAt,
+              editedBy: c.editedBy
             })),
           reminders: remindersData
             .filter((r: any) => r.candidateId === candidateId)
@@ -102,7 +104,9 @@ export class CandidateService {
               priority: r.priority as 'low' | 'medium' | 'high',
               completed: r.completed,
               createdBy: r.createdBy,
-              createdAt: r.createdAt
+              createdAt: r.createdAt,
+              updatedAt: r.updatedAt,
+              updatedBy: r.updatedBy
             }))
         } as Candidate;
       });
@@ -270,7 +274,8 @@ export class CandidateService {
       comments[commentIndex] = {
         ...comments[commentIndex],
         text: newText,
-        editedAt: new Date().toISOString()
+        editedAt: new Date().toISOString(),
+        editedBy: 'Sistema' // Pode ser melhorado para pegar o usuário atual
       };
 
       await GitHubService.saveCommentsData(comments);
@@ -380,7 +385,8 @@ export class CandidateService {
       reminders[reminderIndex] = {
         ...reminders[reminderIndex],
         ...updates,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        updatedBy: 'Sistema' // Pode ser melhorado para pegar o usuário atual
       };
 
       await GitHubService.saveRemindersData(reminders);
@@ -413,54 +419,6 @@ export class CandidateService {
       console.error('❌ Erro ao excluir lembrete:', error);
       throw error;
     }
-  }
-
-  // Sincronizar dados (força reload do GitHub)
-  static async syncExternalDataToLocal(): Promise<number> {
-    try {
-      console.log('🔄 Sincronizando dados do GitHub...');
-      
-      this.clearCache();
-      const candidates = await this.getAllCandidates();
-      
-      console.log(`✅ ${candidates.length} candidatos sincronizados`);
-      return candidates.length;
-    } catch (error) {
-      console.error('❌ Erro ao sincronizar dados:', error);
-      throw error;
-    }
-  }
-
-  // Método legado para compatibilidade
-  static async importCandidatesFromJSON(): Promise<number> {
-    return await this.syncExternalDataToLocal();
-  }
-
-  // Escutar mudanças (simulado para GitHub)
-  static subscribeToChanges(callback: () => void) {
-    // Para GitHub, podemos implementar polling
-    const interval = setInterval(async () => {
-      try {
-        // Verificar se há mudanças comparando com cache
-        const currentData = await GitHubService.getCandidatesData();
-        
-        if (this.cache.candidates) {
-          const currentCount = currentData.length;
-          const cacheCount = this.cache.candidates.length;
-          
-          if (currentCount !== cacheCount) {
-            this.clearCache();
-            callback();
-          }
-        }
-      } catch (error) {
-        console.error('Erro ao verificar mudanças:', error);
-      }
-    }, 60000); // Verificar a cada minuto
-
-    return () => {
-      clearInterval(interval);
-    };
   }
 
   // Obter atividades do usuário
@@ -513,5 +471,53 @@ export class CandidateService {
         completedReminders: 0
       };
     }
+  }
+
+  // Sincronizar dados (força reload do GitHub)
+  static async syncExternalDataToLocal(): Promise<number> {
+    try {
+      console.log('🔄 Sincronizando dados do GitHub...');
+      
+      this.clearCache();
+      const candidates = await this.getAllCandidates();
+      
+      console.log(`✅ ${candidates.length} candidatos sincronizados`);
+      return candidates.length;
+    } catch (error) {
+      console.error('❌ Erro ao sincronizar dados:', error);
+      throw error;
+    }
+  }
+
+  // Método legado para compatibilidade
+  static async importCandidatesFromJSON(): Promise<number> {
+    return await this.syncExternalDataToLocal();
+  }
+
+  // Escutar mudanças (simulado para GitHub)
+  static subscribeToChanges(callback: () => void) {
+    // Para GitHub, podemos implementar polling
+    const interval = setInterval(async () => {
+      try {
+        // Verificar se há mudanças comparando com cache
+        const currentData = await GitHubService.getCandidatesData();
+        
+        if (this.cache.candidates) {
+          const currentCount = currentData.length;
+          const cacheCount = this.cache.candidates.length;
+          
+          if (currentCount !== cacheCount) {
+            this.clearCache();
+            callback();
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao verificar mudanças:', error);
+      }
+    }, 60000); // Verificar a cada minuto
+
+    return () => {
+      clearInterval(interval);
+    };
   }
 }

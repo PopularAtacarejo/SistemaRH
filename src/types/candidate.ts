@@ -4,6 +4,8 @@ export interface Comment {
   author: string;
   date: string;
   type: 'comment' | 'status_change';
+  editedAt?: string;
+  editedBy?: string;
 }
 
 export interface Reminder {
@@ -16,6 +18,8 @@ export interface Reminder {
   completed: boolean;
   createdBy: string;
   createdAt: string;
+  updatedAt?: string;
+  updatedBy?: string;
 }
 
 export interface Candidate {

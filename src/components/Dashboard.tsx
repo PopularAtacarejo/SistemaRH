@@ -8,6 +8,7 @@ import AIAnalysis from './AIAnalysis';
 import RemindersPanel from './RemindersPanel';
 import CommentsPanel from './CommentsPanel';
 import UserActivityPanel from './UserActivityPanel';
+import AIAssistant from './AIAssistant';
 import { Candidate } from '../types/candidate';
 import { CandidateService } from '../services/candidateService';
 import { GitHubService } from '../services/githubService';
@@ -914,6 +915,13 @@ const Dashboard: React.FC = () => {
           </>
         )}
       </div>
+
+      {/* AI Assistant */}
+      <AIAssistant 
+        candidates={originalCandidates}
+        currentUser={user}
+        onCandidateClick={openCandidateModal}
+      />
 
       {/* Candidate Modal */}
       {selectedCandidate && (
