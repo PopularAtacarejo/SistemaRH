@@ -462,4 +462,56 @@ export class CandidateService {
       clearInterval(interval);
     };
   }
+
+  // Obter atividades do usuário
+  static async getUserActivities(userName: string): Promise<{
+    comments: any[];
+    reminders: any[];
+  }> {
+    try {
+      const comments = await GitHubService.getCommentsData();
+      const reminders = await GitHubService.getRemindersData();
+
+      const userComments = comments.filter((c: any) => c.author === userName);
+      const userReminders = reminders.filter((r: any) => r.createdBy === userName);
+
+      return {
+        comments: userComments,
+        reminders: userReminders
+      };
+    } catch (error) {
+      console.error('❌ Erro ao obter atividades do usuário:', error);
+      return {
+        comments: [],
+        reminders: []
+      };
+    }
+  }
+
+  // Obter estatísticas do usuário
+  static async getUserStats(userName: string): Promise<{
+    totalComments: number;
+    totalReminders: number;
+    activeReminders: number;
+    completedReminders: number;
+  }> {
+    try {
+      const activities = await this.getUserActivities(userName);
+      
+      return {
+        totalComments: activities.comments.length,
+        totalReminders: activities.reminders.length,
+        activeReminders: activities.reminders.filter((r: any) => !r.completed).length,
+        completedReminders: activities.reminders.filter((r: any) => r.completed).length
+      };
+    } catch (error) {
+      console.error('❌ Erro ao obter estatísticas do usuário:', error);
+      return {
+        totalComments: 0,
+        totalReminders: 0,
+        activeReminders: 0,
+        completedReminders: 0
+      };
+    }
+  }
 }

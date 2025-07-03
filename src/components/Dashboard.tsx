@@ -7,10 +7,11 @@ import InteractiveCharts from './InteractiveCharts';
 import AIAnalysis from './AIAnalysis';
 import RemindersPanel from './RemindersPanel';
 import CommentsPanel from './CommentsPanel';
+import UserActivityPanel from './UserActivityPanel';
 import { Candidate } from '../types/candidate';
 import { CandidateService } from '../services/candidateService';
 import { GitHubService } from '../services/githubService';
-import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell, Wifi, WifiOff, AlertCircle, CheckCircle, Database, MessageSquare } from 'lucide-react';
+import { Search, X, Download, RefreshCw, FileSpreadsheet, Users, UserCheck, UserX, Clock, Brain, Bell, Wifi, WifiOff, AlertCircle, CheckCircle, Database, MessageSquare, Activity } from 'lucide-react';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -27,7 +28,7 @@ const Dashboard: React.FC = () => {
     count: number;
     error?: string;
   }>({ available: false, count: 0 });
-  const [activeTab, setActiveTab] = useState<'todos' | 'candidatos' | 'aprovados' | 'reprovados' | 'experiencia' | 'ai-analysis' | 'lembretes' | 'comentarios'>('todos');
+  const [activeTab, setActiveTab] = useState<'todos' | 'candidatos' | 'aprovados' | 'reprovados' | 'experiencia' | 'ai-analysis' | 'lembretes' | 'comentarios' | 'atividade'>('todos');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(15);
   const [filters, setFilters] = useState({
@@ -249,7 +250,8 @@ const Dashboard: React.FC = () => {
       case 'ai-analysis':
       case 'lembretes':
       case 'comentarios':
-        // Para análise IA, lembretes e comentários, não filtrar por status
+      case 'atividade':
+        // Para análise IA, lembretes, comentários e atividade, não filtrar por status
         break;
       default:
         // 'todos' - não filtrar por status
@@ -264,7 +266,7 @@ const Dashboard: React.FC = () => {
 
   // Aplicar filtros
   useEffect(() => {
-    if (!['ai-analysis', 'lembretes', 'comentarios'].includes(activeTab)) {
+    if (!['ai-analysis', 'lembretes', 'comentarios', 'atividade'].includes(activeTab)) {
       const filtered = getFilteredCandidatesByTab();
       setCandidates(filtered);
       setCurrentPage(1);
@@ -531,7 +533,8 @@ const Dashboard: React.FC = () => {
       experiencia: originalCandidates.filter(c => 
         ['na_experiencia', 'aprovado_experiencia'].includes(c.status)
       ).length,
-      comentarios: originalCandidates.reduce((total, c) => total + (c.comments?.length || 0), 0)
+      comentarios: originalCandidates.reduce((total, c) => total + (c.comments?.length || 0), 0),
+      lembretes: originalCandidates.reduce((total, c) => total + (c.reminders?.filter(r => !r.completed).length || 0), 0)
     };
   };
 
@@ -544,8 +547,9 @@ const Dashboard: React.FC = () => {
     { id: 'reprovados', label: 'Reprovados', icon: UserX, count: counts.reprovados },
     { id: 'experiencia', label: 'Experiência', icon: Users, count: counts.experiencia },
     { id: 'ai-analysis', label: 'Análise IA', icon: Brain, count: null },
-    { id: 'lembretes', label: 'Lembretes', icon: Bell, count: null },
-    { id: 'comentarios', label: 'Comentários', icon: MessageSquare, count: counts.comentarios }
+    { id: 'lembretes', label: 'Lembretes', icon: Bell, count: counts.lembretes },
+    { id: 'comentarios', label: 'Comentários', icon: MessageSquare, count: counts.comentarios },
+    { id: 'atividade', label: 'Minha Atividade', icon: Activity, count: null }
   ];
 
   const getDataSourceStatusIcon = () => {
@@ -663,7 +667,7 @@ const Dashboard: React.FC = () => {
       {/* Tabs */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 transition-colors duration-200">
         <div className="border-b border-gray-200 dark:border-gray-700">
-          <nav className="flex space-x-8 px-6" aria-label="Tabs">
+          <nav className="flex space-x-8 px-6 overflow-x-auto" aria-label="Tabs">
             {tabs.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -705,6 +709,7 @@ const Dashboard: React.FC = () => {
             onAddReminder={handleAddReminder}
             onUpdateReminder={handleUpdateReminder}
             onDeleteReminder={handleDeleteReminder}
+            currentUser={user}
           />
         ) : activeTab === 'comentarios' ? (
           <CommentsPanel 
@@ -713,6 +718,17 @@ const Dashboard: React.FC = () => {
             onAddComment={handleAddComment}
             onEditComment={handleEditComment}
             onDeleteComment={handleDeleteComment}
+            currentUser={user}
+          />
+        ) : activeTab === 'atividade' ? (
+          <UserActivityPanel 
+            candidates={originalCandidates}
+            currentUser={user}
+            onCandidateClick={openCandidateModal}
+            onEditComment={handleEditComment}
+            onDeleteComment={handleDeleteComment}
+            onUpdateReminder={handleUpdateReminder}
+            onDeleteReminder={handleDeleteReminder}
           />
         ) : (
           <>

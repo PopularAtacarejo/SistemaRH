@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, Calendar, Clock, AlertTriangle, Plus, Eye, CheckCircle, X, User, Briefcase, Trash2, Edit } from 'lucide-react';
+import { Bell, Calendar, Clock, AlertTriangle, Plus, Eye, CheckCircle, X, User, Briefcase, Trash2, Edit, Filter } from 'lucide-react';
 import { Candidate } from '../types/candidate';
+import { User as UserType } from '../services/userService';
 
 interface Reminder {
   id: string;
@@ -20,6 +21,7 @@ interface RemindersPanelProps {
   onAddReminder: (candidateId: string, reminder: Reminder) => void;
   onUpdateReminder: (candidateId: string, reminderId: string, updates: any) => void;
   onDeleteReminder?: (candidateId: string, reminderId: string) => void;
+  currentUser?: UserType | null;
 }
 
 const RemindersPanel: React.FC<RemindersPanelProps> = ({
@@ -27,11 +29,15 @@ const RemindersPanel: React.FC<RemindersPanelProps> = ({
   onCandidateClick,
   onAddReminder,
   onUpdateReminder,
-  onDeleteReminder
+  onDeleteReminder,
+  currentUser
 }) => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<string>('');
   const [editingReminder, setEditingReminder] = useState<string | null>(null);
+  const [filterAuthor, setFilterAuthor] = useState<string>('');
+  const [filterPriority, setFilterPriority] = useState<string>('');
+  const [showOnlyMine, setShowOnlyMine] = useState(false);
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -118,8 +124,32 @@ const RemindersPanel: React.FC<RemindersPanelProps> = ({
       }
     });
 
-    return [...automaticReminders, ...manualReminders].sort((a, b) => {
-      // Ordenar por prioridade e data
+    return [...automaticReminders, ...manualReminders];
+  };
+
+  // Filtrar lembretes
+  const getFilteredReminders = () => {
+    let allReminders = getAllReminders();
+
+    // Filtro por autor
+    if (filterAuthor.trim()) {
+      allReminders = allReminders.filter(item =>
+        item.reminder.createdBy.toLowerCase().includes(filterAuthor.toLowerCase())
+      );
+    }
+
+    // Filtro por prioridade
+    if (filterPriority) {
+      allReminders = allReminders.filter(item => item.reminder.priority === filterPriority);
+    }
+
+    // Filtro "apenas meus"
+    if (showOnlyMine && currentUser) {
+      allReminders = allReminders.filter(item => item.reminder.createdBy === currentUser.name);
+    }
+
+    // Ordenar por prioridade e data
+    return allReminders.sort((a, b) => {
       const priorityOrder = { high: 3, medium: 2, low: 1 };
       const priorityDiff = priorityOrder[b.reminder.priority] - priorityOrder[a.reminder.priority];
       
@@ -143,7 +173,7 @@ const RemindersPanel: React.FC<RemindersPanelProps> = ({
       dueDate: formData.dueDate,
       priority: formData.priority,
       completed: false,
-      createdBy: 'Usuário Atual',
+      createdBy: currentUser?.name || 'Usuário Atual',
       createdAt: new Date().toISOString()
     };
 
@@ -168,6 +198,11 @@ const RemindersPanel: React.FC<RemindersPanelProps> = ({
     if (onDeleteReminder && confirm('Tem certeza que deseja excluir este lembrete?')) {
       onDeleteReminder(candidateId, reminderId);
     }
+  };
+
+  const canEditReminder = (reminder: Reminder) => {
+    if (!currentUser) return false;
+    return currentUser.role === 'Administrador' || reminder.createdBy === currentUser.name;
   };
 
   const getPriorityColor = (priority: string) => {
@@ -204,9 +239,12 @@ const RemindersPanel: React.FC<RemindersPanelProps> = ({
     return new Date(dueDate) < new Date();
   };
 
-  const allReminders = getAllReminders();
-  const activeReminders = allReminders.filter(r => !r.reminder.completed);
-  const completedReminders = allReminders.filter(r => r.reminder.completed);
+  const filteredReminders = getFilteredReminders();
+  const activeReminders = filteredReminders.filter(r => !r.reminder.completed);
+  const completedReminders = filteredReminders.filter(r => r.reminder.completed);
+
+  // Obter autores únicos para filtro
+  const uniqueAuthors = [...new Set(getAllReminders().map(r => r.reminder.createdBy))].sort();
 
   return (
     <div className="p-6">
@@ -276,6 +314,75 @@ const RemindersPanel: React.FC<RemindersPanelProps> = ({
           </div>
         </div>
 
+        {/* Filtros */}
+        <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 mb-6">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Filtros</h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Filtrar por autor
+              </label>
+              <select
+                value={filterAuthor}
+                onChange={(e) => setFilterAuthor(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              >
+                <option value="">Todos os autores</option>
+                {uniqueAuthors.map(author => (
+                  <option key={author} value={author}>{author}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Filtrar por prioridade
+              </label>
+              <select
+                value={filterPriority}
+                onChange={(e) => setFilterPriority(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
+              >
+                <option value="">Todas as prioridades</option>
+                <option value="high">Alta</option>
+                <option value="medium">Média</option>
+                <option value="low">Baixa</option>
+              </select>
+            </div>
+
+            <div className="flex items-end">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={showOnlyMine}
+                  onChange={(e) => setShowOnlyMine(e.target.checked)}
+                  className="rounded border-gray-300 dark:border-gray-600 text-orange-600 focus:ring-orange-500"
+                />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Apenas meus lembretes
+                </span>
+              </label>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center justify-between">
+            <button
+              onClick={() => {
+                setFilterAuthor('');
+                setFilterPriority('');
+                setShowOnlyMine(false);
+              }}
+              className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 underline"
+            >
+              Limpar filtros
+            </button>
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              {filteredReminders.length} lembrete{filteredReminders.length !== 1 ? 's' : ''} encontrado{filteredReminders.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+        </div>
+
         {/* Lista de Lembretes Ativos */}
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm mb-6">
           <div className="p-6 border-b border-gray-200 dark:border-gray-700">
@@ -335,6 +442,10 @@ const RemindersPanel: React.FC<RemindersPanelProps> = ({
                           <Calendar className="w-4 h-4" />
                           Vencimento: {formatDate(reminder.dueDate)}
                         </div>
+                        <div className="flex items-center gap-1">
+                          <User className="w-4 h-4" />
+                          Por: {reminder.createdBy}
+                        </div>
                       </div>
                     </div>
 
@@ -347,15 +458,17 @@ const RemindersPanel: React.FC<RemindersPanelProps> = ({
                         <Eye className="w-4 h-4" />
                       </button>
                       
-                      <button
-                        onClick={() => handleCompleteReminder(candidate.id, reminder.id)}
-                        className="p-2 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/50 rounded-lg transition-colors"
-                        title="Marcar como concluído"
-                      >
-                        <CheckCircle className="w-4 h-4" />
-                      </button>
+                      {canEditReminder(reminder) && (
+                        <button
+                          onClick={() => handleCompleteReminder(candidate.id, reminder.id)}
+                          className="p-2 text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/50 rounded-lg transition-colors"
+                          title="Marcar como concluído"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                        </button>
+                      )}
 
-                      {onDeleteReminder && reminder.type === 'manual' && (
+                      {canEditReminder(reminder) && onDeleteReminder && reminder.type === 'manual' && (
                         <button
                           onClick={() => handleDeleteReminder(candidate.id, reminder.id)}
                           className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-lg transition-colors"
@@ -390,12 +503,12 @@ const RemindersPanel: React.FC<RemindersPanelProps> = ({
                         {reminder.title}
                       </h4>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        {candidate.nome} • {formatDate(reminder.dueDate)}
+                        {candidate.nome} • {formatDate(reminder.dueDate)} • Por: {reminder.createdBy}
                       </p>
                     </div>
                     <div className="flex items-center gap-1">
                       <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
-                      {onDeleteReminder && reminder.type === 'manual' && (
+                      {canEditReminder(reminder) && onDeleteReminder && reminder.type === 'manual' && (
                         <button
                           onClick={() => handleDeleteReminder(candidate.id, reminder.id)}
                           className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400 transition-colors"

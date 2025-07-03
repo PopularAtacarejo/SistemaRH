@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { MessageSquare, User, Calendar, Search, Filter, Eye, Plus, Send, X, Edit, Trash2 } from 'lucide-react';
 import { Candidate } from '../types/candidate';
+import { User as UserType } from '../services/userService';
 
 interface CommentsPanelProps {
   candidates: Candidate[];
@@ -8,6 +9,7 @@ interface CommentsPanelProps {
   onAddComment: (candidateId: string, comment: string) => void;
   onEditComment?: (candidateId: string, commentId: string, newText: string) => void;
   onDeleteComment?: (candidateId: string, commentId: string) => void;
+  currentUser?: UserType | null;
 }
 
 const CommentsPanel: React.FC<CommentsPanelProps> = ({
@@ -15,11 +17,13 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
   onCandidateClick,
   onAddComment,
   onEditComment,
-  onDeleteComment
+  onDeleteComment,
+  currentUser
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAuthor, setFilterAuthor] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'comment' | 'status_change'>('all');
+  const [showOnlyMine, setShowOnlyMine] = useState(false);
   const [showAddCommentModal, setShowAddCommentModal] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<string>('');
   const [newComment, setNewComment] = useState('');
@@ -76,6 +80,11 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
       filtered = filtered.filter(comment => comment.type === filterType);
     }
 
+    // Filtro "apenas meus"
+    if (showOnlyMine && currentUser) {
+      filtered = filtered.filter(comment => comment.author === currentUser.name);
+    }
+
     return filtered;
   };
 
@@ -86,12 +95,14 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
     const statusChanges = allComments.filter(c => c.type === 'status_change').length;
     const regularComments = allComments.filter(c => c.type === 'comment').length;
     const uniqueAuthors = [...new Set(allComments.map(c => c.author))].length;
+    const myComments = currentUser ? allComments.filter(c => c.author === currentUser.name).length : 0;
 
     return {
       total: totalComments,
       statusChanges,
       regularComments,
-      uniqueAuthors
+      uniqueAuthors,
+      myComments
     };
   };
 
@@ -130,6 +141,11 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
     if (onDeleteComment && confirm('Tem certeza que deseja excluir este comentário?')) {
       onDeleteComment(candidateId, commentId);
     }
+  };
+
+  const canEditComment = (comment: any) => {
+    if (!currentUser) return false;
+    return currentUser.role === 'Administrador' || comment.author === currentUser.name;
   };
 
   const formatDate = (dateString: string) => {
@@ -180,7 +196,7 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
         </div>
 
         {/* Estatísticas */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
           <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
             <div className="flex items-center gap-2">
               <MessageSquare className="w-5 h-5 text-blue-600 dark:text-blue-400" />
@@ -220,13 +236,23 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
               {stats.uniqueAuthors}
             </p>
           </div>
+
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
+            <div className="flex items-center gap-2">
+              <User className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
+              <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Meus</span>
+            </div>
+            <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400 mt-1">
+              {stats.myComments}
+            </p>
+          </div>
         </div>
 
         {/* Filtros */}
         <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 mb-6">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">Filtros</h3>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Buscar por texto
@@ -273,6 +299,20 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
                 <option value="status_change">Mudanças de Status</option>
               </select>
             </div>
+
+            <div className="flex items-end">
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={showOnlyMine}
+                  onChange={(e) => setShowOnlyMine(e.target.checked)}
+                  className="rounded border-gray-300 dark:border-gray-600 text-green-600 focus:ring-green-500"
+                />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Apenas meus comentários
+                </span>
+              </label>
+            </div>
           </div>
 
           <div className="mt-4 flex items-center justify-between">
@@ -281,6 +321,7 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
                 setSearchTerm('');
                 setFilterAuthor('');
                 setFilterType('all');
+                setShowOnlyMine(false);
               }}
               className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 underline"
             >
@@ -304,7 +345,7 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
             <div className="p-8 text-center">
               <MessageSquare className="w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-4" />
               <p className="text-gray-500 dark:text-gray-400">
-                {searchTerm || filterAuthor || filterType !== 'all' 
+                {searchTerm || filterAuthor || filterType !== 'all' || showOnlyMine
                   ? 'Nenhum comentário encontrado com os filtros aplicados'
                   : 'Nenhum comentário encontrado'
                 }
@@ -388,7 +429,7 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
                           <Eye className="w-4 h-4" />
                         </button>
                         
-                        {onEditComment && (
+                        {canEditComment(comment) && onEditComment && (
                           <button
                             onClick={() => handleEditComment(comment.id, comment.candidate.id, comment.text)}
                             className="p-2 text-gray-400 hover:text-yellow-600 dark:hover:text-yellow-400 hover:bg-yellow-50 dark:hover:bg-yellow-900/50 rounded-lg transition-colors"
@@ -398,7 +439,7 @@ const CommentsPanel: React.FC<CommentsPanelProps> = ({
                           </button>
                         )}
                         
-                        {onDeleteComment && (
+                        {canEditComment(comment) && onDeleteComment && (
                           <button
                             onClick={() => handleDeleteComment(comment.id, comment.candidate.id)}
                             className="p-2 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50 rounded-lg transition-colors"
