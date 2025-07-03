@@ -6,19 +6,27 @@ export interface GitHubDataConfig {
 }
 
 export class GitHubDataService {
-  // Configuração para dados de usuários (repositório específico)
-  private static userDataConfig: GitHubDataConfig = {
+  // Configuração para Sistema RH (usuários, auditoria, comentários sobre usuários)
+  private static mainConfig: GitHubDataConfig = {
     owner: 'PopularAtacarejo',
-    repo: 'DadosSistemaRH',
-    token: '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', // Token DADOS2
+    repo: 'SistemaRH',
+    token: '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', // Token Dados2
     branch: 'main'
   };
 
-  // Configuração para dados de candidatos/vagas (repositório VagasPopular)
+  // Dados de usuários e sistema RH
+  private static userDataConfig: GitHubDataConfig = {
+    owner: 'PopularAtacarejo',
+    repo: 'SistemaRH',
+    token: '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', // Token Dados2
+    branch: 'main'
+  };
+
+  // Dados de candidatos também no SistemaRH
   private static candidateDataConfig: GitHubDataConfig = {
     owner: 'PopularAtacarejo',
-    repo: 'VagasPopular',
-    token: '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', // Token CONSULTARVAGAS
+    repo: 'SistemaRH',
+    token: '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', // Token Dados2
     branch: 'main'
   };
 
@@ -30,7 +38,7 @@ export class GitHubDataService {
     this.candidateDataConfig = { ...this.candidateDataConfig, ...config };
   }
 
-  // === MÉTODOS PARA DADOS DE USUÁRIOS (Repositório DadosSistemaRH) ===
+  // === MÉTODOS PARA DADOS DE USUÁRIOS (Repositório SistemaRH) ===
 
   static async getUserFile(path: string): Promise<{ content: any; sha: string } | null> {
     return this.getFile(path, this.userDataConfig);
@@ -42,41 +50,42 @@ export class GitHubDataService {
 
   static async getUsersData(): Promise<any[]> {
     try {
-      console.log('🔄 Buscando dados dos usuários do repositório DadosSistemaRH...');
+      console.log('🔄 Buscando dados dos usuários do repositório SistemaRH...');
+      console.log('📂 URL: https://github.com/PopularAtacarejo/SistemaRH/blob/main/usuarios.json');
       
       const file = await this.getUserFile('usuarios.json');
       
       if (file && Array.isArray(file.content)) {
-        console.log(`✅ ${file.content.length} usuários carregados do repositório de dados`);
+        console.log(`✅ ${file.content.length} usuários carregados do repositório SistemaRH`);
         return file.content;
       }
 
-      // Se não existir, criar arquivo inicial com usuários padrão
-      console.log('⚠️ Arquivo usuarios.json não encontrado, criando usuários padrão');
+      // Se não existir, criar arquivo inicial com usuário master
+      console.log('⚠️ Arquivo usuarios.json não encontrado, criando usuário master');
       const defaultUsers = [
         {
           id: '1',
           email: 'jeferson@sistemahr.com',
           name: 'Jeferson',
-          role: 'Administrador',
+          role: 'Desenvolvedor',
           department: 'Desenvolvimento',
-          password: '873090As#',
+          password: '873090As#27',
           isActive: true,
+          isMaster: true,
+          permissions: {
+            canCreateUsers: true,
+            canEditUsers: true,
+            canDeleteUsers: true,
+            canManageRoles: true,
+            canViewAudit: true,
+            canManageSystem: true,
+            canAccessAllData: true
+          },
           createdAt: new Date().toISOString(),
-          createdBy: 'Sistema',
-          lastUpdate: new Date().toISOString()
-        },
-        {
-          id: '2',
-          email: 'admin@empresa.com',
-          name: 'Administrador Sistema',
-          role: 'Administrador',
-          department: 'Recursos Humanos',
-          password: 'admin123',
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          createdBy: 'Sistema',
-          lastUpdate: new Date().toISOString()
+          createdBy: 'Sistema Inicial',
+          lastUpdate: new Date().toISOString(),
+          description: 'Usuário master - Desenvolvedor principal do sistema',
+          repository: 'SistemaRH'
         }
       ];
 
@@ -97,7 +106,7 @@ export class GitHubDataService {
       const usersWithMetadata = users.map(user => ({
         ...user,
         lastUpdate: new Date().toISOString(),
-        repository: 'DadosSistemaRH'
+        repository: 'SistemaRH'
       }));
 
       await this.saveUserFile(
@@ -107,7 +116,7 @@ export class GitHubDataService {
         sha
       );
 
-      console.log('✅ Dados dos usuários salvos no repositório DadosSistemaRH');
+      console.log('✅ Dados dos usuários salvos no repositório SistemaRH');
     } catch (error) {
       console.error('❌ Erro ao salvar dados dos usuários:', error);
       throw error;
@@ -124,7 +133,7 @@ export class GitHubDataService {
         ...activityLog,
         id: crypto.randomUUID(),
         timestamp: new Date().toISOString(),
-        repository: 'DadosSistemaRH'
+        repository: 'SistemaRH'
       });
 
       // Manter apenas os últimos 5000 registros
@@ -153,7 +162,7 @@ export class GitHubDataService {
       const commentsWithMetadata = comments.map(comment => ({
         ...comment,
         savedAt: new Date().toISOString(),
-        repository: 'DadosSistemaRH'
+        repository: 'SistemaRH'
       }));
 
       await this.saveUserFile(
@@ -182,7 +191,7 @@ export class GitHubDataService {
         changes,
         changedBy,
         timestamp: new Date().toISOString(),
-        repository: 'DadosSistemaRH'
+        repository: 'SistemaRH'
       });
 
       // Manter apenas os últimos 2000 registros
@@ -213,20 +222,22 @@ export class GitHubDataService {
     return this.saveFile(path, content, message, this.candidateDataConfig, sha);
   }
 
-  // Buscar dados de candidatos/vagas do arquivo dados.json
+  // Buscar dados de candidatos/vagas do arquivo candidatos.json
   static async getCandidatesData(): Promise<any[]> {
     try {
-      console.log('🔄 Buscando dados dos candidatos/vagas do repositório VagasPopular...');
-      console.log('📂 Arquivo: https://github.com/PopularAtacarejo/VagasPopular/blob/main/dados.json');
+      console.log('🔄 Buscando dados dos candidatos/vagas do repositório SistemaRH...');
+      console.log('📂 Arquivo: https://github.com/PopularAtacarejo/SistemaRH/blob/main/candidatos.json');
       
-      const file = await this.getCandidateFile('dados.json');
+      const file = await this.getCandidateFile('candidatos.json');
       
       if (file && Array.isArray(file.content)) {
-        console.log(`✅ ${file.content.length} candidatos/vagas carregados do dados.json`);
+        console.log(`✅ ${file.content.length} candidatos/vagas carregados do SistemaRH`);
         return file.content;
       }
 
-      console.log('⚠️ Arquivo dados.json não encontrado ou vazio');
+      console.log('⚠️ Arquivo candidatos.json não encontrado, criando arquivo inicial...');
+      // Criar arquivo inicial vazio
+      await this.saveCandidatesData([]);
       return [];
     } catch (error) {
       console.error('❌ Erro ao buscar dados dos candidatos/vagas:', error);
@@ -241,25 +252,25 @@ export class GitHubDataService {
 
   static async saveCandidatesData(candidates: any[]): Promise<void> {
     try {
-      console.log('💾 Salvando dados de candidatos/vagas no repositório VagasPopular...');
-      const currentFile = await this.getCandidateFile('dados.json');
+      console.log('💾 Salvando dados de candidatos/vagas no repositório SistemaRH...');
+      const currentFile = await this.getCandidateFile('candidatos.json');
       const sha = currentFile?.sha;
 
       // Adicionar metadados de atualização
       const candidatesWithMetadata = candidates.map(candidate => ({
         ...candidate,
         lastUpdate: new Date().toISOString(),
-        repository: 'VagasPopular'
+        repository: 'SistemaRH'
       }));
 
       await this.saveCandidateFile(
-        'dados.json',
+        'candidatos.json',
         candidatesWithMetadata,
         `Atualização dos candidatos/vagas - ${new Date().toISOString()}`,
         sha
       );
 
-      console.log('✅ Dados de candidatos/vagas salvos no dados.json');
+      console.log('✅ Dados de candidatos/vagas salvos no SistemaRH');
     } catch (error) {
       console.error('❌ Erro ao salvar dados dos candidatos/vagas:', error);
       throw error;
@@ -440,7 +451,7 @@ export class GitHubDataService {
 
       // Verificar arquivos do repositório de candidatos
       try {
-        const candidateFile = await this.getCandidateFile('dados.json');
+        const candidateFile = await this.getCandidateFile('candidatos.json');
         if (candidateFile) {
           candidateRepoStats.files = 1;
           candidateRepoStats.lastUpdate = new Date().toISOString();
