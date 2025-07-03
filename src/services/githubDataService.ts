@@ -6,22 +6,23 @@ export interface GitHubDataConfig {
 }
 
 export class GitHubDataService {
-  // Configuração unificada - TUDO no repositório VagasPopular
+  // Configuração para Sistema RH (usuários, auditoria, comentários sobre usuários)
   private static mainConfig: GitHubDataConfig = {
     owner: 'PopularAtacarejo',
-    repo: 'VagasPopular',
+    repo: 'SistemaRH',
     token: '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', // Token CONSULTARVAGAS
     branch: 'main'
   };
 
-  // Manter compatibilidade (ambos apontam para o mesmo repositório)
+  // Dados de usuários e sistema RH
   private static userDataConfig: GitHubDataConfig = {
     owner: 'PopularAtacarejo',
-    repo: 'VagasPopular',
+    repo: 'SistemaRH',
     token: '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', // Token CONSULTARVAGAS
     branch: 'main'
   };
 
+  // Apenas dados de vagas/candidatos (sem alteração)
   private static candidateDataConfig: GitHubDataConfig = {
     owner: 'PopularAtacarejo',
     repo: 'VagasPopular',
@@ -37,7 +38,7 @@ export class GitHubDataService {
     this.candidateDataConfig = { ...this.candidateDataConfig, ...config };
   }
 
-  // === MÉTODOS PARA DADOS DE USUÁRIOS (Repositório DadosSistemaRH) ===
+  // === MÉTODOS PARA DADOS DE USUÁRIOS (Repositório SistemaRH) ===
 
   static async getUserFile(path: string): Promise<{ content: any; sha: string } | null> {
     return this.getFile(path, this.userDataConfig);
