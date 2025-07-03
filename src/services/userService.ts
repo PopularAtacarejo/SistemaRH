@@ -198,6 +198,48 @@ export class UserService {
     }
   }
 
+  // Buscar usuário por nome
+  static async getUserByName(name: string): Promise<User | null> {
+    try {
+      console.log('🔍 Buscando usuário por nome:', name);
+      
+      const users = await this.getAllUsers();
+      const user = users.find(u => u.name.toLowerCase() === name.toLowerCase() && u.isActive);
+      
+      if (user) {
+        console.log('✅ Usuário encontrado:', user.name);
+        return user;
+      } else {
+        console.log('❌ Usuário não encontrado:', name);
+        return null;
+      }
+    } catch (error) {
+      console.error('❌ Erro ao buscar usuário por nome:', error);
+      return null;
+    }
+  }
+
+  // Buscar usuário por ID
+  static async getUserById(userId: string): Promise<User | null> {
+    try {
+      console.log('🔍 Buscando usuário por ID:', userId);
+      
+      const users = await this.getAllUsers();
+      const user = users.find(u => u.id === userId);
+      
+      if (user) {
+        console.log('✅ Usuário encontrado:', user.name);
+        return user;
+      } else {
+        console.log('❌ Usuário não encontrado:', userId);
+        return null;
+      }
+    } catch (error) {
+      console.error('❌ Erro ao buscar usuário por ID:', error);
+      return null;
+    }
+  }
+
   // Autenticar usuário
   static async authenticateUser(email: string, password: string): Promise<User | null> {
     try {
