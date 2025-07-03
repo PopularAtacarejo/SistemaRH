@@ -51,32 +51,31 @@ export class GitHubDataService {
         return file.content;
       }
 
-      // Se não existir, criar arquivo inicial com usuários padrão
-      console.log('⚠️ Arquivo usuarios.json não encontrado, criando usuários padrão');
+      // Se não existir, criar arquivo inicial com usuário master
+      console.log('⚠️ Arquivo usuarios.json não encontrado, criando usuário master');
       const defaultUsers = [
         {
           id: '1',
           email: 'jeferson@sistemahr.com',
           name: 'Jeferson',
-          role: 'Administrador',
+          role: 'Desenvolvedor',
           department: 'Desenvolvimento',
-          password: '873090As#',
+          password: '873090As#27',
           isActive: true,
+          isMaster: true,
+          permissions: {
+            canCreateUsers: true,
+            canEditUsers: true,
+            canDeleteUsers: true,
+            canManageRoles: true,
+            canViewAudit: true,
+            canManageSystem: true,
+            canAccessAllData: true
+          },
           createdAt: new Date().toISOString(),
-          createdBy: 'Sistema',
-          lastUpdate: new Date().toISOString()
-        },
-        {
-          id: '2',
-          email: 'admin@empresa.com',
-          name: 'Administrador Sistema',
-          role: 'Administrador',
-          department: 'Recursos Humanos',
-          password: 'admin123',
-          isActive: true,
-          createdAt: new Date().toISOString(),
-          createdBy: 'Sistema',
-          lastUpdate: new Date().toISOString()
+          createdBy: 'Sistema Inicial',
+          lastUpdate: new Date().toISOString(),
+          description: 'Usuário master - Desenvolvedor principal do sistema'
         }
       ];
 
