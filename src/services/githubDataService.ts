@@ -6,15 +6,22 @@ export interface GitHubDataConfig {
 }
 
 export class GitHubDataService {
-  // Configuração para dados de usuários (repositório específico)
-  private static userDataConfig: GitHubDataConfig = {
+  // Configuração unificada - TUDO no repositório VagasPopular
+  private static mainConfig: GitHubDataConfig = {
     owner: 'PopularAtacarejo',
-    repo: 'DadosSistemaRH',
-    token: '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', // Token DADOS2
+    repo: 'VagasPopular',
+    token: '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', // Token CONSULTARVAGAS
     branch: 'main'
   };
 
-  // Configuração para dados de candidatos/vagas (repositório VagasPopular)
+  // Manter compatibilidade (ambos apontam para o mesmo repositório)
+  private static userDataConfig: GitHubDataConfig = {
+    owner: 'PopularAtacarejo',
+    repo: 'VagasPopular',
+    token: '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', // Token CONSULTARVAGAS
+    branch: 'main'
+  };
+
   private static candidateDataConfig: GitHubDataConfig = {
     owner: 'PopularAtacarejo',
     repo: 'VagasPopular',
